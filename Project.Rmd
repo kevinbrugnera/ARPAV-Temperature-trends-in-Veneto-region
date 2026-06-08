@@ -1,0 +1,609 @@
+---
+title: "Advanced Statistics for Physics Analysis"
+subtitle: "Project: ARPAV Temperature Trends in the Veneto Region"
+author: "Kevin Brugnera, Marco Lorenzato, Libero Pollini"
+date: "June 18, 2026"
+output:
+  pdf_document:
+    number_sections: false
+  html_document:
+    number_sections: false
+---
+
+# 1. Initialization and Data Loading Functions
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+library(readr)
+library(cmdstanr)
+library(posterior)
+library(ggplot2)
+library(loo)
+
+# Data reading function
+
+find_data <- function(path){
+  row <- read_lines(path, locale = locale(encoding = "latin1", decimal_mark = "."))
+  
+  row_min <- grep("Temperatura", row)[1]  
+  index_1994_min <- row_min + grep("^1994;", row[row_min:length(row)])[1] - 1
+  index_2024_min <- row_min + grep("^2024;", row[row_min:length(row)])[1] - 1
+  
+  row_mean <- grep("Temperatura", row)[2]
+  index_1994_mean <- row_mean + grep("^1994;", row[row_mean:length(row)])[1] - 1
+  index_2024_mean <- row_mean + grep("^2024;", row[row_mean:length(row)])[1] - 1
+  
+  row_max <- grep("Temperatura", row)[3]
+  index_1994_max <- row_max + grep("^1994;", row[row_max:length(row)])[1] - 1
+  index_2024_max <- row_max + grep("^2024;", row[row_max:length(row)])[1] - 1
+  n_row <- index_2024_max - index_1994_max + 1
+  
+  data_min <- read_delim(
+    path, 
+    delim = ";",
+    col_names = c("Anno", "GEN", "FEB", "MAR", "APR", "MAG", "GIU", 
+                  "LUG", "AGO", "SET", "OTT", "NOV", "DIC", "Medio"),
+    skip = index_1994_min - 1,
+    n_max = n_row,
+    col_types = cols(.default = col_double()),
+    locale = locale(encoding = "latin1", decimal_mark = "."),
+    na = c("", "NA", ">>") 
+  )
+  
+  data_mean <- read_delim(
+    path, 
+    delim = ";",
+    col_names = c("Anno", "GEN", "FEB", "MAR", "APR", "MAG", "GIU", 
+                  "LUG", "AGO", "SET", "OTT", "NOV", "DIC", "Medio"),
+    skip = index_1994_mean - 1,
+    n_max = n_row,
+    col_types = cols(.default = col_double()),
+    locale = locale(encoding = "latin1", decimal_mark = "."),
+    na = c("", "NA", ">>") 
+  )
+  
+  data_max <- read_delim(
+    path, 
+    delim = ";",
+    col_names = c("Anno", "GEN", "FEB", "MAR", "APR", "MAG", "GIU", 
+                  "LUG", "AGO", "SET", "OTT", "NOV", "DIC", "Medio"),
+    skip = index_1994_max - 1,
+    n_max = n_row,
+    col_types = cols(.default = col_double()),
+    locale = locale(encoding = "latin1", decimal_mark = "."),
+    na = c("", "NA", ">>") 
+  )
+  
+  return(list(data_min, data_mean, data_max))
+}
+
+# Data plotting function
+
+plot_hist <- function(temp_min, temp_mean, temp_max, month = "", city = "") {
+  year <- 1994:2024
+  t_min <- min(c(temp_min, temp_mean, temp_max), na.rm = TRUE)
+  t_max <- max(c(temp_min, temp_mean, temp_max), na.rm = TRUE)
+  
+  old_par <- par(no.readonly = TRUE)
+  on.exit(par(old_par)) 
+  par(mar = c(5, 4, 4, 7) + 0.1)
+  
+  plot(year, temp_max,
+       type = "h", 
+       lwd = 10,
+       lend = 1,
+       ylim = c(t_min * 1.2, t_max * 1.2),
+       main = paste("Temperature in", month, "-", city),
+       xlab = "Year",
+       ylab = "Temperature (°C)",
+       col = "red", border = "white")
+  
+  lines(year, temp_mean, 
+        type = "h", 
+        lwd = 10,
+        lend = 1,
+        pch = 16, 
+        col = "darkorange", border = "white")
+  
+  lines(year, temp_min, 
+        type = "h", 
+        lwd = 10,
+        lend = 1,
+        pch = 16, 
+        col = "blue", border = "white")
+  
+  abline(h = 0, col = "gray50", lwd = 1, lty = 2)
+  
+  legend("topright", 
+         legend = c("Max", "Mean", "Min"),
+         col = c("red", "darkorange", "blue"), 
+         lwd = 2, 
+         pch = 16, 
+         bty = "n",
+         xpd = TRUE,
+         inset = c(-0.22, 0)) 
+}
+
+# fit function
+
+build_fit_stan_model <- function(stan_file_path, my_data) {
+  my_mod <- cmdstan_model(stan_file_path)
+  cat("MODEL COMPILED SUCCESSFULLY\n")
+  my_fit <- my_mod$sample(
+    data = my_data,
+    chains = 4,
+    parallel_chains = 4,
+    iter_warmup = 1000,
+    iter_sampling = 2000,
+    seed = 222 
+  )
+  return(list(mod = my_mod, fit = my_fit))
+}
+
+# correlations (scatter plot)
+
+plot_2_correlations <- function(my_draws_df, params_list, axes_names = c(expression(T[0]), expression(dot(T)))) {
+  cm <- cor(as.matrix(my_draws_df[, params_list])) 
+  p <- ggplot(my_draws_df, aes(x = .data[[params_list[1]]], y = .data[[params_list[2]]])) +
+    geom_point(alpha = 0.15, size = 0.8, color = "black") +
+    coord_fixed(ratio = 1) + 
+    labs(
+      x = axes_names[1],
+      y = axes_names[2]
+    ) +
+    theme_classic(base_size = 12, base_family = "serif") +
+    theme(
+      panel.border = element_rect(fill = NA, color = "black", linewidth = 0.5),
+      axis.line = element_blank(),
+      axis.ticks = element_line(color = "black", linewidth = 0.5),
+      axis.ticks.length = unit(0.15, "cm"),
+      axis.title = element_text(size = 12),
+      axis.text = element_text(size = 10, color = "black")
+    )
+  return(list(cor = cm, plot = p))
+}
+
+# posterior density plot
+
+plot_posterior <- function(my_draws_df, my_x_stdd, my_y_data,
+                           my_x_grid = NULL, n_grid = N, n_pred_grid = N_fut_steps,
+                           orig_mean = years_mean, orig_sd = years_sd_ceiling, my_step = step,
+                           xb_l = 5, xl_l = 5, yg_b = 0.5) {
+  if (is.null(my_x_grid)) { 
+    x_grid <- seq(min(my_x_stdd), max(my_x_stdd) + my_step * n_pred_grid, length.out = n_grid + n_pred_grid)
+  } else {
+    x_grid <- my_x_grid
+  }
+
+  S <- nrow(my_draws_df)
+  T_mat <- matrix(NA, nrow = S, ncol = length(x_grid))
+
+  if (!"T_dot" %in% colnames(my_draws_df)) {
+    T_dot_vals <- rep(0, S) 
+  } else {
+    T_dot_vals <- my_draws_df$T_dot
+  }
+
+  for (i in seq_along(x_grid)) {
+    T_mat[, i] <- my_draws_df$T0 + T_dot_vals * x_grid[i]
+  }
+
+  T_mean <- apply(T_mat, 2, mean)
+  T_lo <- apply(T_mat, 2, quantile, 0.025)
+  T_hi <- apply(T_mat, 2, quantile, 0.975)
+  T_pred_mat <- matrix(NA, S, length(x_grid))
+  for (i in 1:S) {
+    T_pred_mat[i, ] <- rnorm(length(x_grid), mean = T_mat[i, ], sd = my_draws_df$sigma[i])
+  }
+  T_pred_lo <- apply(T_pred_mat, 2, quantile, 0.025)
+  T_pred_hi <- apply(T_pred_mat, 2, quantile, 0.975)
+
+  plot_df <- data.frame(x_stdd = x_grid, mean = T_mean, lo = T_lo, hi = T_hi, p_lo = T_pred_lo, p_hi = T_pred_hi)
+
+  p <- ggplot() +
+    geom_point(aes(x = my_x_stdd, y = my_y_data, color = "Observations")) +
+    geom_line(data = plot_df, aes(x = x_stdd, y = mean, color = "Posterior mean"), linewidth = 1) +
+    geom_ribbon(data = plot_df, aes(x = x_stdd, ymin = lo, ymax = hi, fill = "95% CI"), alpha = 0.3) +
+    geom_ribbon(data = plot_df[(n_grid + 1):(n_grid + n_pred_grid), ], aes(x = x_stdd, ymin = p_lo, ymax = p_hi, fill = "95% CI (pred.)"), alpha = 0.3) +
+    scale_color_manual(values = c("Observations" = "black", "Posterior mean" = "blue")) +
+    scale_fill_manual(values = c("95% CI" = "grey70", "95% CI (pred.)" = "grey40")) +
+    labs(x = "Year", y = "Average temperature (°C)") +
+    guides(color = guide_legend(title = NULL), fill = guide_legend(title = NULL)) +
+    scale_x_continuous(
+      breaks = seq(min(x_grid), max(x_grid), length.out = xb_l),
+      labels = round(orig_mean + orig_sd * seq(min(x_grid), max(x_grid), length.out = xl_l))
+    ) +
+    geom_hline(
+      yintercept = seq(floor(min(my_y_data)), floor(max(T_pred_hi)), by = yg_b),
+      color = "grey85", linewidth = 0.3
+    ) + 
+
+    theme_classic(base_size = 12, base_family = "serif") +
+    theme(
+      panel.border = element_rect(fill = NA, color = "black", linewidth = 0.5),
+      axis.line = element_blank(),
+      axis.ticks = element_line(color = "black", linewidth = 0.5),
+      axis.ticks.length = unit(0.15, "cm"),
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      axis.title = element_text(size = 12),
+      axis.text = element_text(size = 10, color = "black"),
+      legend.position = "bottom",
+      legend.direction = "horizontal",
+      legend.box = "horizontal",
+      legend.title = element_blank(),
+      legend.text = element_text(size = 10, family = "serif"),
+      legend.margin = margin(t = 0, b = 0, unit = "pt"),
+      legend.spacing.x = unit(5, "pt")
+    )
+
+  return(p)
+}
+
+# graphs: Traces, ACFs, densities
+
+plot_various_graphs <- function(my_fit, params_list) {
+  draws_array <- as.array(my_fit$draws())
+  n_iters <- dim(draws_array)[1]
+  n_chains <- dim(draws_array)[2]
+
+  df_list <- list()
+  idx <- 1 
+  for (p in params_list) { 
+    for (chain in 1:n_chains) {
+      vals <- draws_array[, chain, p]
+      df_list[[idx]] <- data.frame(
+        Parameter = p,
+        Chain = factor(chain),
+        Iteration = seq_along(vals),
+        Value = as.numeric(vals),
+        stringsAsFactors = FALSE
+      )
+      idx <- idx + 1
+    }
+  }
+  df_long <- do.call(rbind, df_list) 
+
+  label_map <- c("T0" = "T[0]", "T_dot" = "dot(T)", "sigma" = "sigma")
+  df_long$Parameter <- factor(df_long$Parameter,
+    levels = params_list,
+    labels = label_map[params_list]
+  )
+  
+  trace_plot <- ggplot(df_long, aes(x = Iteration, y = Value, color = Chain)) +
+    geom_line(alpha = 0.7) +
+    facet_wrap(~Parameter, scales = "free_y", ncol = 1, labeller = label_parsed) + 
+    labs(x = "Iteration", y = "Parameter value") +
+    scale_color_manual(values = c("1" = "#E69F00", "2" = "#56B4E9", "3" = "#009E73", "4" = "#CC79A7")) +
+    theme_classic(base_size = 12, base_family = "serif") +
+    theme(
+      panel.border = element_rect(fill = NA, color = "black", linewidth = 0.5),
+      axis.line = element_blank(),
+      strip.background = element_blank(),
+      strip.text = element_text(face = "bold", size = 12, family = "serif"),
+      legend.position = "bottom",
+      legend.title = element_text(size = 10),
+      legend.text = element_text(size = 9)
+    )
+
+  hist_plot <- ggplot(df_long, aes(x = Value, fill = Chain, color = Chain)) +
+    geom_histogram(aes(y = after_stat(count / sum(count))), alpha = 0.4, bins = 30, position = "identity") +
+    facet_wrap(~Parameter, scales = "free", ncol = 1, labeller = label_parsed) +
+    labs(x = "Parameter value", y = "Relative frequency") +
+    scale_color_manual(values = c("1" = "#E69F00", "2" = "#56B4E9", "3" = "#009E73", "4" = "#CC79A7")) + 
+    scale_fill_manual(values = c("1" = "#E69F00", "2" = "#56B4E9", "3" = "#009E73", "4" = "#CC79A7")) +
+    theme_classic(base_size = 12, base_family = "serif") +
+    theme(
+      panel.border = element_rect(fill = NA, color = "black", linewidth = 0.5),
+      axis.line = element_blank(),
+      strip.background = element_blank(),
+      strip.text = element_text(face = "bold", size = 12, family = "serif"),
+      legend.position = "bottom",
+      legend.title = element_text(size = 10),
+      legend.text = element_text(size = 9)
+    )
+
+  acf_list <- list()
+  for (param in params_list) {
+    param_draws <- as.vector(my_fit$draws(param))
+    acf_obj <- acf(param_draws, plot = FALSE)
+    acf_list[[param]] <- data.frame(
+      Lag = as.numeric(acf_obj$lag),
+      ACF = as.numeric(acf_obj$acf),
+      Parameter = param
+    )
+  }
+  acf_df <- do.call(rbind, acf_list)
+  acf_df$Parameter <- factor(acf_df$Parameter,
+    levels = params_list 
+  )
+  acf_df$Parameter <- factor(acf_df$Parameter,
+    levels = params_list,
+    labels = label_map[params_list]
+  )
+  acf_plot <- ggplot(acf_df, aes(x = Lag, y = ACF)) +
+    geom_hline(yintercept = 0, color = "black", linewidth = 0.4) +
+    geom_segment(aes(xend = Lag, yend = 0), color = "black", linewidth = 0.7) +
+    facet_wrap(~Parameter, ncol = 1, labeller = label_parsed) +
+    labs(x = "Lag", y = "ACF") +
+    theme_classic(base_size = 12, base_family = "serif") +
+    theme(
+      panel.border = element_rect(fill = NA, color = "black", linewidth = 0.5),
+      axis.line = element_blank(),
+      strip.background = element_blank(),
+      strip.text = element_text(face = "bold", size = 12, family = "serif"),
+      legend.position = "none",
+      legend.text = element_text(size = 9, family = "serif")
+    )
+  return(list(acf = acf_plot, trace = trace_plot, density = hist_plot))
+}
+
+```
+
+# 2. Data Loading and Exploratory Data Analysis
+
+## 2.1 Import Dataset
+
+```{r}
+data_oderzo <- find_data("data/Oderzo.csv")
+data_oderzo
+```
+```{r}
+data_montesummano <- find_data("data/Monte_Summano.csv")
+data_montesummano
+```
+```{r}
+data_cittadella <- find_data("data/Cittadella.csv")
+data_cittadella
+```
+
+## 2.2 Exploratory Visualization (Oderzo)
+
+```{r, warning=FALSE}
+temp_min <- data_oderzo[[1]]$GEN
+temp_mean <- data_oderzo[[2]]$GEN
+temp_max <- data_oderzo[[3]]$GEN
+
+plot_hist(temp_min, temp_mean, temp_max, month="January", city="Oderzo")
+
+plot_hist(data_oderzo[[1]]$Medio, data_oderzo[[2]]$Medio, data_oderzo[[3]]$Medio,
+          month="Overall", city="Oderzo")
+```
+
+# 3. Bayesian Model Preparation (Monte Summano)
+
+## 3.1 Summaries and Extraction
+
+```{r}
+ms_means <- data_montesummano[[2]]
+ms_means_yearavg <- ms_means$Medio
+
+cat("Yearly means: \n")
+cat(ms_means_yearavg, "\n")
+
+ms_m_ya_length <- length(ms_means_yearavg)
+cat("Number of yearly means: \n")
+cat(ms_m_ya_length, "\n")
+
+years <- ms_means$Anno
+cat("Years: \n")
+cat(years, "\n")
+
+```
+
+## 3.2 Standardization
+
+```{r}
+years_mean <- mean(years)
+cat("Mean year:", years_mean, "\n")
+
+years_sd_ceiling <- ceiling(sd(years))
+cat("Ceiling of standard deviation:", years_sd_ceiling, "\n")
+
+years_stdd <- (years - years_mean) / years_sd_ceiling
+
+N <- ms_m_ya_length
+cat("Number of observations:", N, "\n")
+
+step <- abs(years_stdd[1] - years_stdd[2]) 
+cat("Standardized time step:", step, "\n")
+
+N_fut_steps <- 10
+cat("Number of future prediction steps:", N_fut_steps, "\n")
+
+time_future <- seq(1 + step, by = step, length.out = N_fut_steps) 
+cat("Future standardized time points:\n")
+print(time_future)
+
+stan_data_sdd <- list(
+  N = N,
+  time = years_stdd,
+  T = ms_means_yearavg,
+  N_future = N_fut_steps,
+  time_future = time_future
+)
+
+```
+
+# 4. Linear Model Fit (Stan)
+
+## 4.1 MCMC Sampling and Convergence Diagnostics
+
+```{r, warning=FALSE, message=FALSE}
+res <- build_fit_stan_model("./linear_model.stan", stan_data_sdd)
+
+mod <- res$mod
+fit <- res$fit
+
+stan_T_param_names <- c("T0", "T_dot")
+
+cat("Summary of T parameters:\n")
+fit$summary(stan_T_param_names)
+
+cat("Summary of sigma:\n")
+fit$summary("sigma")
+
+cat("Running CmdStan diagnostics...\n")
+fit$cmdstan_diagnose()
+
+```
+
+## 4.2 95% Credible Intervals
+
+```{r, warning=FALSE}
+draws_df <- as_draws_df(fit$draws()) 
+
+quantiles_T <- lapply(
+  draws_df[, stan_T_param_names],
+  quantile,
+  probs = c(0.025, 0.975)
+)
+
+cat("T0    : [",
+    round(quantiles_T$T0[1], 3), ", ",
+    round(quantiles_T$T0[2], 3), "]\n")
+
+cat("T_dot : [",
+    round(quantiles_T$T_dot[1], 3), ", ",
+    round(quantiles_T$T_dot[2], 3), "]\n")
+
+cat("\n")
+
+```
+
+## 4.3 Parameter Dependencies (Correlation Analysis)
+
+```{r}
+cor_plot <- plot_2_correlations(draws_df, stan_T_param_names)
+print(cor_plot$plot)
+cor_plot$cor 
+
+cor_plot_sigma_0 <- plot_2_correlations(draws_df, c("T0", "sigma"))
+print(cor_plot_sigma_0$plot)
+cor_plot_sigma_0$cor
+
+cor_plot_sigma_dot <- plot_2_correlations(draws_df, c("T_dot", "sigma"))
+print(cor_plot_sigma_dot$plot)
+cor_plot_sigma_dot$cor
+
+```
+
+## 4.4 Posterior Density and Observational Fitting
+
+```{r}
+plot <- plot_posterior(draws_df, my_x_stdd = stan_data_sdd$time, my_y_data = stan_data_sdd$T)
+print(plot)
+
+```
+
+## 4.5 MCMC Diagnostic Plots
+
+```{r}
+graphs <- plot_various_graphs(fit, c("T0", "T_dot", "sigma"))
+
+print(graphs$trace)
+print(graphs$density)
+print(graphs$acf)
+
+```
+
+# 5. Constant Model Fit (Stan)
+
+## 5.1 MCMC Sampling and Convergence Diagnostics
+
+```{r, warning=FALSE}
+res_c <- build_fit_stan_model("./constant_model.stan", stan_data_sdd)
+
+mod_c <- res_c$mod
+fit_c <- res_c$fit
+
+cat("Summary of T, sigma parameters:\n")
+fit_c$summary(c("T0", "sigma"))
+
+cat("Running CmdStan diagnostics...\n")
+fit_c$cmdstan_diagnose()
+
+```
+
+## 5.2 95% Credible Intervals
+
+```{r, warning=FALSE}
+draws_df_c <- as_draws_df(fit_c$draws())
+
+quantiles_c <- lapply(
+  draws_df_c[, c("T0", "sigma")],
+  quantile,
+  probs = c(0.025, 0.975)
+)
+
+cat("T0 : [",
+    round(quantiles_c$T0[1], 3), ", ",
+    round(quantiles_c$T0[2], 3), "]\n")
+
+cat("sigma : [",
+    round(quantiles_c$sigma[1], 3), ", ",
+    round(quantiles_c$sigma[2], 3), "]\n")
+
+cat("\n")
+
+```
+
+## 5.3 Parameter Dependencies (Correlation Analysis)
+
+```{r, warning=FALSE}
+cor_plot_c <- plot_2_correlations(draws_df_c, c("T0", "sigma"))
+print(cor_plot_c$plot)
+cor_plot_c$cor 
+
+```
+
+## 5.4 Posterior Density and Observational Fitting
+
+```{r}
+plot_posterior(draws_df_c, my_x_stdd = stan_data_sdd$time, my_y_data = stan_data_sdd$T)
+
+```
+
+## 5.5 MCMC Diagnostic Plots
+
+```{r}
+c_graphs <- plot_various_graphs(fit_c, c("T0", "sigma"))
+print(c_graphs$trace)
+print(c_graphs$density)
+print(c_graphs$acf)
+
+```
+
+# 6. Model Comparison
+
+## 6.1 Bayes-Factor Evaluation
+
+```{r}
+
+```
+
+## 6.2 Leave-One-Out Cross-Validation (LOO-CV)
+
+```{r, warning=FALSE}
+log_lik <- fit$draws("log_lik", format = "matrix")
+loo <- loo(log_lik)
+
+c_log_lik <- fit_c$draws("log_lik", format = "matrix")
+c_loo <- loo(c_log_lik)
+
+loo_comp <- compare(loo, c_loo)
+elpd_diff <- loo_comp["elpd_diff"]
+se_diff   <- loo_comp["se"]
+
+cat("LOO-CV MODEL COMPARISON\n\n")
+cat("ELPD difference (M_Lin - M_Const):", round(elpd_diff, 3), "\n")
+cat("Standard error:", round(se_diff, 3), "\n")
+
+```
+
+# 7. 10-Year Posterior Predictions (Annual Mean T)
+
+...
+
+# 8. Discussion
+
+...
