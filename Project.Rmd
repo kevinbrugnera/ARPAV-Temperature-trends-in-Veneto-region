@@ -103,7 +103,7 @@ stan_data_ms <- list(
 ### 4.1 MCMC Sampling and Convergence Diagnostics
 
 ```{r, warning=FALSE, message=FALSE}
-res_ms <- build_fit_stan_model("./linear_model.stan", stan_data_ms)
+res_ms <- build_fit_stan_model("./Stan/linear_model.stan", stan_data_ms)
 
 mod_ms <- res_ms$mod
 fit_ms <- res_ms$fit
@@ -163,9 +163,15 @@ cor_plot_sigma_dot_ms$cor
 ### 4.4 Posterior Density and Observational Fitting
 
 ```{r}
-plot_ms <- plot_posterior(draws_df_ms, my_x_stdd = stan_data_ms$time, my_y_data = stan_data_ms$T)
+plot_ms <- plot_posterior(draws_df_ms, 
+                          my_x_stdd = stan_data_ms$time, 
+                          my_y_data = stan_data_ms$T, 
+                          n_grid = N_ms, 
+                          n_pred_grid = N_fut_steps_ms,
+                          orig_mean = years_mean_ms, 
+                          orig_sd = years_sd_ceiling_ms, 
+                          my_step = step_ms)
 print(plot_ms)
-
 ```
 
 ### 4.5 MCMC Diagnostic Plots
@@ -184,7 +190,7 @@ print(graphs_ms$acf)
 ### 5.1 MCMC Sampling and Convergence Diagnostics
 
 ```{r, warning=FALSE}
-res_c_ms <- build_fit_stan_model("./constant_model.stan", stan_data_ms)
+res_c_ms <- build_fit_stan_model("./Stan/constant_model.stan", stan_data_ms)
 
 mod_c_ms <- res_c_ms$mod
 fit_c_ms <- res_c_ms$fit
@@ -231,7 +237,15 @@ cor_plot_c_ms$cor
 ### 5.4 Posterior Density and Observational Fitting
 
 ```{r}
-plot_posterior(draws_df_c_ms, my_x_stdd = stan_data_ms$time, my_y_data = stan_data_ms$T)
+plot_ms_c <- plot_posterior(draws_df_c_ms, 
+                          my_x_stdd = stan_data_ms$time, 
+                          my_y_data = stan_data_ms$T, 
+                          n_grid = N_ms, 
+                          n_pred_grid = N_fut_steps_ms,
+                          orig_mean = years_mean_ms, 
+                          orig_sd = years_sd_ceiling_ms, 
+                          my_step = step_ms)
+print(plot_ms_c)
 
 ```
 
@@ -343,9 +357,7 @@ print(round(summary_c_ms_view, 3))
 Predictions Plot (Linear Model)
 
 ```{r, warning=FALSE, message=FALSE, error=FALSE}
-base_plot <- plot_posterior(draws_df_ms, my_x_stdd = stan_data_ms$time, my_y_data = stan_data_ms$T)
-
-full_plot <- base_plot +
+full_plot <- plot_ms +
   geom_point(
     data = summary_lin_ms,
     aes(x = Time_Step, y = MAP, color = "MAP Pred."), 
@@ -365,9 +377,7 @@ print(full_plot)
 Predictions Plot (Constant Model)
 
 ```{r, warning=FALSE, message=FALSE, error=FALSE}
-base_plot <- plot_posterior(draws_df_c_ms, my_x_stdd = stan_data_ms$time, my_y_data = stan_data_ms$T)
-
-full_plot <- base_plot +
+full_plot <- plot_ms_c +
   geom_point(
     data = summary_c_ms,
     aes(x = Time_Step, y = MAP, color = "MAP Pred."), 
@@ -474,7 +484,7 @@ stan_data_od <- list(
 ### 4.1 MCMC Sampling and Convergence Diagnostics
 
 ```{r, warning=FALSE, message=FALSE}
-res_od <- build_fit_stan_model("./linear_model.stan", stan_data_od)
+res_od <- build_fit_stan_model("./Stan/linear_model.stan", stan_data_od)
 
 mod_od <- res_od$mod
 fit_od <- res_od$fit
@@ -532,9 +542,15 @@ cor_plot_sigma_dot_od$cor
 ### 4.4 Posterior Density and Observational Fitting
 
 ```{r}
-plot_od <- plot_posterior(draws_df_od, my_x_stdd = stan_data_od$time, my_y_data = stan_data_od$T)
+plot_od <- plot_posterior(draws_df_od, 
+                          my_x_stdd = stan_data_od$time, 
+                          my_y_data = stan_data_od$T, 
+                          n_grid = N_od, 
+                          n_pred_grid = N_fut_steps_od,
+                          orig_mean = years_mean_od, 
+                          orig_sd = years_sd_ceiling_od, 
+                          my_step = step_od)
 print(plot_od)
-
 ```
 
 ### 4.5 MCMC Diagnostic Plots
@@ -553,7 +569,7 @@ print(graphs_od$acf)
 ### 5.1 MCMC Sampling and Convergence Diagnostics
 
 ```{r, warning=FALSE}
-res_c_od <- build_fit_stan_model("./constant_model.stan", stan_data_od)
+res_c_od <- build_fit_stan_model("./Stan/constant_model.stan", stan_data_od)
 
 mod_c_od <- res_c_od$mod
 fit_c_od <- res_c_od$fit
@@ -600,8 +616,15 @@ cor_plot_c_od$cor
 ### 5.4 Posterior Density and Observational Fitting
 
 ```{r}
-plot_posterior(draws_df_c_od, my_x_stdd = stan_data_od$time, my_y_data = stan_data_od$T)
-
+plot_od_c <- plot_posterior(draws_df_c_od, 
+                          my_x_stdd = stan_data_od$time, 
+                          my_y_data = stan_data_od$T, 
+                          n_grid = N_od, 
+                          n_pred_grid = N_fut_steps_od,
+                          orig_mean = years_mean_od, 
+                          orig_sd = years_sd_ceiling_od, 
+                          my_step = step_od)
+print(plot_od_c)
 ```
 
 ### 5.5 MCMC Diagnostic Plots
@@ -714,9 +737,7 @@ print(round(summary_c_od_view, 3))
 Predictions Plot (Linear Model)
 
 ```{r, warning=FALSE, message=FALSE, error=FALSE}
-base_plot <- plot_posterior(draws_df_od, my_x_stdd = stan_data_od$time, my_y_data = stan_data_od$T)
-
-full_plot <- base_plot +
+full_plot <- plot_od +
   geom_point(
     data = summary_lin_od,
     aes(x = Time_Step, y = MAP, color = "MAP Pred."), 
@@ -736,9 +757,7 @@ print(full_plot)
 Predictions Plot (Constant Model)
 
 ```{r, warning=FALSE, message=FALSE, error=FALSE}
-base_plot <- plot_posterior(draws_df_c_od, my_x_stdd = stan_data_od$time, my_y_data = stan_data_od$T)
-
-full_plot <- base_plot +
+full_plot <- plot_od_c +
   geom_point(
     data = summary_c_od,
     aes(x = Time_Step, y = MAP, color = "MAP Pred."), 
@@ -845,7 +864,7 @@ stan_data_ci <- list(
 ### 4.1 MCMC Sampling and Convergence Diagnostics
 
 ```{r, warning=FALSE, message=FALSE}
-res_ci <- build_fit_stan_model("./linear_model.stan", stan_data_ci)
+res_ci <- build_fit_stan_model("./Stan/linear_model.stan", stan_data_ci)
 
 mod_ci <- res_ci$mod
 fit_ci <- res_ci$fit
@@ -903,7 +922,14 @@ cor_plot_sigma_dot_ci$cor
 ### 4.4 Posterior Density and Observational Fitting
 
 ```{r}
-plot_ci <- plot_posterior(draws_df_ci, my_x_stdd = stan_data_ci$time, my_y_data = stan_data_ci$T)
+plot_ci <- plot_posterior(draws_df_ci, 
+                          my_x_stdd = stan_data_ci$time, 
+                          my_y_data = stan_data_ci$T, 
+                          n_grid = N_ci, 
+                          n_pred_grid = N_fut_steps_ci,
+                          orig_mean = years_mean_ci, 
+                          orig_sd = years_sd_ceiling_ci, 
+                          my_step = step_ci)
 print(plot_ci)
 
 ```
@@ -924,7 +950,7 @@ print(graphs_ci$acf)
 ### 5.1 MCMC Sampling and Convergence Diagnostics
 
 ```{r, warning=FALSE}
-res_c_ci <- build_fit_stan_model("./constant_model.stan", stan_data_ci)
+res_c_ci <- build_fit_stan_model("./Stan/constant_model.stan", stan_data_ci)
 
 mod_c_ci <- res_c_ci$mod
 fit_c_ci <- res_c_ci$fit
@@ -971,7 +997,15 @@ cor_plot_c_ci$cor
 ### 5.4 Posterior Density and Observational Fitting
 
 ```{r}
-plot_posterior(draws_df_c_ci, my_x_stdd = stan_data_ci$time, my_y_data = stan_data_ci$T)
+plot_ci_c <- plot_posterior(draws_df_c_ci, 
+                          my_x_stdd = stan_data_ci$time, 
+                          my_y_data = stan_data_ci$T, 
+                          n_grid = N_ci, 
+                          n_pred_grid = N_fut_steps_ci,
+                          orig_mean = years_mean_ci, 
+                          orig_sd = years_sd_ceiling_ci, 
+                          my_step = step_ci)
+print(plot_ci_c)
 
 ```
 
@@ -1081,9 +1115,7 @@ print(round(summary_c_ci_view, 3))
 Predictions Plot (Linear Model)
 
 ```{r, warning=FALSE, message=FALSE, error=FALSE}
-base_plot <- plot_posterior(draws_df_ci, my_x_stdd = stan_data_ci$time, my_y_data = stan_data_ci$T)
-
-full_plot <- base_plot +
+full_plot <- plot_ci +
   geom_point(
     data = summary_lin_ci,
     aes(x = Time_Step, y = MAP, color = "MAP Pred."), 
@@ -1103,9 +1135,7 @@ print(full_plot)
 Predictions Plot (Constant Model)
 
 ```{r, warning=FALSE, message=FALSE, error=FALSE}
-base_plot <- plot_posterior(draws_df_c_ci, my_x_stdd = stan_data_ci$time, my_y_data = stan_data_ci$T)
-
-full_plot <- base_plot +
+full_plot <- plot_ci_c +
   geom_point(
     data = summary_c_ci,
     aes(x = Time_Step, y = MAP, color = "MAP Pred."), 
