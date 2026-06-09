@@ -10,371 +10,44 @@ output:
     number_sections: false
 ---
 
-# 1. Initialization and Data Loading Functions
+First, we import the functions.R files, with all dependencies and used function.
 
-```{r, echo=FALSE, warning=FALSE, message=FALSE}
-library(readr)
-library(cmdstanr)
-library(posterior)
-library(ggplot2)
-library(loo)
-
-# Data reading function
-
-find_data <- function(path){
-  row <- read_lines(path, locale = locale(encoding = "latin1", decimal_mark = "."))
-  
-  row_min <- grep("Temperatura", row)[1]  
-  index_1994_min <- row_min + grep("^1994;", row[row_min:length(row)])[1] - 1
-  index_2024_min <- row_min + grep("^2024;", row[row_min:length(row)])[1] - 1
-  
-  row_mean <- grep("Temperatura", row)[2]
-  index_1994_mean <- row_mean + grep("^1994;", row[row_mean:length(row)])[1] - 1
-  index_2024_mean <- row_mean + grep("^2024;", row[row_mean:length(row)])[1] - 1
-  
-  row_max <- grep("Temperatura", row)[3]
-  index_1994_max <- row_max + grep("^1994;", row[row_max:length(row)])[1] - 1
-  index_2024_max <- row_max + grep("^2024;", row[row_max:length(row)])[1] - 1
-  n_row <- index_2024_max - index_1994_max + 1
-  
-  data_min <- read_delim(
-    path, 
-    delim = ";",
-    col_names = c("Anno", "GEN", "FEB", "MAR", "APR", "MAG", "GIU", 
-                  "LUG", "AGO", "SET", "OTT", "NOV", "DIC", "Medio"),
-    skip = index_1994_min - 1,
-    n_max = n_row,
-    col_types = cols(.default = col_double()),
-    locale = locale(encoding = "latin1", decimal_mark = "."),
-    na = c("", "NA", ">>") 
-  )
-  
-  data_mean <- read_delim(
-    path, 
-    delim = ";",
-    col_names = c("Anno", "GEN", "FEB", "MAR", "APR", "MAG", "GIU", 
-                  "LUG", "AGO", "SET", "OTT", "NOV", "DIC", "Medio"),
-    skip = index_1994_mean - 1,
-    n_max = n_row,
-    col_types = cols(.default = col_double()),
-    locale = locale(encoding = "latin1", decimal_mark = "."),
-    na = c("", "NA", ">>") 
-  )
-  
-  data_max <- read_delim(
-    path, 
-    delim = ";",
-    col_names = c("Anno", "GEN", "FEB", "MAR", "APR", "MAG", "GIU", 
-                  "LUG", "AGO", "SET", "OTT", "NOV", "DIC", "Medio"),
-    skip = index_1994_max - 1,
-    n_max = n_row,
-    col_types = cols(.default = col_double()),
-    locale = locale(encoding = "latin1", decimal_mark = "."),
-    na = c("", "NA", ">>") 
-  )
-  
-  return(list(data_min, data_mean, data_max))
-}
-
-# Data plotting function
-
-plot_hist <- function(temp_min, temp_mean, temp_max, month = "", city = "") {
-  year <- 1994:2024
-  t_min <- min(c(temp_min, temp_mean, temp_max), na.rm = TRUE)
-  t_max <- max(c(temp_min, temp_mean, temp_max), na.rm = TRUE)
-  
-  old_par <- par(no.readonly = TRUE)
-  on.exit(par(old_par)) 
-  par(mar = c(5, 4, 4, 7) + 0.1)
-  
-  plot(year, temp_max,
-       type = "h", 
-       lwd = 10,
-       lend = 1,
-       ylim = c(t_min * 1.2, t_max * 1.2),
-       main = paste("Temperature in", month, "-", city),
-       xlab = "Year",
-       ylab = "Temperature (°C)",
-       col = "red", border = "white")
-  
-  lines(year, temp_mean, 
-        type = "h", 
-        lwd = 10,
-        lend = 1,
-        pch = 16, 
-        col = "darkorange", border = "white")
-  
-  lines(year, temp_min, 
-        type = "h", 
-        lwd = 10,
-        lend = 1,
-        pch = 16, 
-        col = "blue", border = "white")
-  
-  abline(h = 0, col = "gray50", lwd = 1, lty = 2)
-  
-  legend("topright", 
-         legend = c("Max", "Mean", "Min"),
-         col = c("red", "darkorange", "blue"), 
-         lwd = 2, 
-         pch = 16, 
-         bty = "n",
-         xpd = TRUE,
-         inset = c(-0.22, 0)) 
-}
-
-# fit function
-
-build_fit_stan_model <- function(stan_file_path, my_data) {
-  my_mod <- cmdstan_model(stan_file_path)
-  cat("MODEL COMPILED SUCCESSFULLY\n")
-  my_fit <- my_mod$sample(
-    data = my_data,
-    chains = 4,
-    parallel_chains = 4,
-    iter_warmup = 1000,
-    iter_sampling = 2000,
-    seed = 222 
-  )
-  return(list(mod = my_mod, fit = my_fit))
-}
-
-# correlations (scatter plot)
-
-plot_2_correlations <- function(my_draws_df, params_list, axes_names = c(expression(T[0]), expression(dot(T)))) {
-  cm <- cor(as.matrix(my_draws_df[, params_list])) 
-  p <- ggplot(my_draws_df, aes(x = .data[[params_list[1]]], y = .data[[params_list[2]]])) +
-    geom_point(alpha = 0.15, size = 0.8, color = "black") +
-    coord_fixed(ratio = 1) + 
-    labs(
-      x = axes_names[1],
-      y = axes_names[2]
-    ) +
-    theme_classic(base_size = 12, base_family = "serif") +
-    theme(
-      panel.border = element_rect(fill = NA, color = "black", linewidth = 0.5),
-      axis.line = element_blank(),
-      axis.ticks = element_line(color = "black", linewidth = 0.5),
-      axis.ticks.length = unit(0.15, "cm"),
-      axis.title = element_text(size = 12),
-      axis.text = element_text(size = 10, color = "black")
-    )
-  return(list(cor = cm, plot = p))
-}
-
-# posterior density plot
-
-plot_posterior <- function(my_draws_df, my_x_stdd, my_y_data,
-                           my_x_grid = NULL, n_grid = N, n_pred_grid = N_fut_steps,
-                           orig_mean = years_mean, orig_sd = years_sd_ceiling, my_step = step,
-                           xb_l = 5, xl_l = 5, yg_b = 0.5) {
-  if (is.null(my_x_grid)) { 
-    x_grid <- seq(min(my_x_stdd), max(my_x_stdd) + my_step * n_pred_grid, length.out = n_grid + n_pred_grid)
-  } else {
-    x_grid <- my_x_grid
-  }
-
-  S <- nrow(my_draws_df)
-  T_mat <- matrix(NA, nrow = S, ncol = length(x_grid))
-
-  if (!"T_dot" %in% colnames(my_draws_df)) {
-    T_dot_vals <- rep(0, S) 
-  } else {
-    T_dot_vals <- my_draws_df$T_dot
-  }
-
-  for (i in seq_along(x_grid)) {
-    T_mat[, i] <- my_draws_df$T0 + T_dot_vals * x_grid[i]
-  }
-
-  T_mean <- apply(T_mat, 2, mean)
-  T_lo <- apply(T_mat, 2, quantile, 0.025)
-  T_hi <- apply(T_mat, 2, quantile, 0.975)
-  T_pred_mat <- matrix(NA, S, length(x_grid))
-  for (i in 1:S) {
-    T_pred_mat[i, ] <- rnorm(length(x_grid), mean = T_mat[i, ], sd = my_draws_df$sigma[i])
-  }
-  T_pred_lo <- apply(T_pred_mat, 2, quantile, 0.025)
-  T_pred_hi <- apply(T_pred_mat, 2, quantile, 0.975)
-
-  plot_df <- data.frame(x_stdd = x_grid, mean = T_mean, lo = T_lo, hi = T_hi, p_lo = T_pred_lo, p_hi = T_pred_hi)
-
-  p <- ggplot() +
-    geom_point(aes(x = my_x_stdd, y = my_y_data, color = "Observations")) +
-    geom_line(data = plot_df, aes(x = x_stdd, y = mean, color = "Posterior mean"), linewidth = 1) +
-    geom_ribbon(data = plot_df, aes(x = x_stdd, ymin = lo, ymax = hi, fill = "95% CI"), alpha = 0.3) +
-    geom_ribbon(data = plot_df[(n_grid + 1):(n_grid + n_pred_grid), ], aes(x = x_stdd, ymin = p_lo, ymax = p_hi, fill = "95% CI (pred.)"), alpha = 0.3) +
-    scale_color_manual(values = c("Observations" = "black", "Posterior mean" = "blue")) +
-    scale_fill_manual(values = c("95% CI" = "grey70", "95% CI (pred.)" = "grey40")) +
-    labs(x = "Year", y = "Average temperature (°C)") +
-    guides(color = guide_legend(title = NULL), fill = guide_legend(title = NULL)) +
-    scale_x_continuous(
-      breaks = seq(min(x_grid), max(x_grid), length.out = xb_l),
-      labels = round(orig_mean + orig_sd * seq(min(x_grid), max(x_grid), length.out = xl_l))
-    ) +
-    geom_hline(
-      yintercept = seq(floor(min(my_y_data)), floor(max(T_pred_hi)), by = yg_b),
-      color = "grey85", linewidth = 0.3
-    ) + 
-
-    theme_classic(base_size = 12, base_family = "serif") +
-    theme(
-      panel.border = element_rect(fill = NA, color = "black", linewidth = 0.5),
-      axis.line = element_blank(),
-      axis.ticks = element_line(color = "black", linewidth = 0.5),
-      axis.ticks.length = unit(0.15, "cm"),
-      panel.grid.major = element_blank(),
-      panel.grid.minor = element_blank(),
-      axis.title = element_text(size = 12),
-      axis.text = element_text(size = 10, color = "black"),
-      legend.position = "bottom",
-      legend.direction = "horizontal",
-      legend.box = "horizontal",
-      legend.title = element_blank(),
-      legend.text = element_text(size = 10, family = "serif"),
-      legend.margin = margin(t = 0, b = 0, unit = "pt"),
-      legend.spacing.x = unit(5, "pt")
-    )
-
-  return(p)
-}
-
-# graphs: Traces, ACFs, densities
-
-plot_various_graphs <- function(my_fit, params_list) {
-  draws_array <- as.array(my_fit$draws())
-  n_iters <- dim(draws_array)[1]
-  n_chains <- dim(draws_array)[2]
-
-  df_list <- list()
-  idx <- 1 
-  for (p in params_list) { 
-    for (chain in 1:n_chains) {
-      vals <- draws_array[, chain, p]
-      df_list[[idx]] <- data.frame(
-        Parameter = p,
-        Chain = factor(chain),
-        Iteration = seq_along(vals),
-        Value = as.numeric(vals),
-        stringsAsFactors = FALSE
-      )
-      idx <- idx + 1
-    }
-  }
-  df_long <- do.call(rbind, df_list) 
-
-  label_map <- c("T0" = "T[0]", "T_dot" = "dot(T)", "sigma" = "sigma")
-  df_long$Parameter <- factor(df_long$Parameter,
-    levels = params_list,
-    labels = label_map[params_list]
-  )
-  
-  trace_plot <- ggplot(df_long, aes(x = Iteration, y = Value, color = Chain)) +
-    geom_line(alpha = 0.7) +
-    facet_wrap(~Parameter, scales = "free_y", ncol = 1, labeller = label_parsed) + 
-    labs(x = "Iteration", y = "Parameter value") +
-    scale_color_manual(values = c("1" = "#E69F00", "2" = "#56B4E9", "3" = "#009E73", "4" = "#CC79A7")) +
-    theme_classic(base_size = 12, base_family = "serif") +
-    theme(
-      panel.border = element_rect(fill = NA, color = "black", linewidth = 0.5),
-      axis.line = element_blank(),
-      strip.background = element_blank(),
-      strip.text = element_text(face = "bold", size = 12, family = "serif"),
-      legend.position = "bottom",
-      legend.title = element_text(size = 10),
-      legend.text = element_text(size = 9)
-    )
-
-  hist_plot <- ggplot(df_long, aes(x = Value, fill = Chain, color = Chain)) +
-    geom_histogram(aes(y = after_stat(count / sum(count))), alpha = 0.4, bins = 30, position = "identity") +
-    facet_wrap(~Parameter, scales = "free", ncol = 1, labeller = label_parsed) +
-    labs(x = "Parameter value", y = "Relative frequency") +
-    scale_color_manual(values = c("1" = "#E69F00", "2" = "#56B4E9", "3" = "#009E73", "4" = "#CC79A7")) + 
-    scale_fill_manual(values = c("1" = "#E69F00", "2" = "#56B4E9", "3" = "#009E73", "4" = "#CC79A7")) +
-    theme_classic(base_size = 12, base_family = "serif") +
-    theme(
-      panel.border = element_rect(fill = NA, color = "black", linewidth = 0.5),
-      axis.line = element_blank(),
-      strip.background = element_blank(),
-      strip.text = element_text(face = "bold", size = 12, family = "serif"),
-      legend.position = "bottom",
-      legend.title = element_text(size = 10),
-      legend.text = element_text(size = 9)
-    )
-
-  acf_list <- list()
-  for (param in params_list) {
-    param_draws <- as.vector(my_fit$draws(param))
-    acf_obj <- acf(param_draws, plot = FALSE)
-    acf_list[[param]] <- data.frame(
-      Lag = as.numeric(acf_obj$lag),
-      ACF = as.numeric(acf_obj$acf),
-      Parameter = param
-    )
-  }
-  acf_df <- do.call(rbind, acf_list)
-  acf_df$Parameter <- factor(acf_df$Parameter,
-    levels = params_list 
-  )
-  acf_df$Parameter <- factor(acf_df$Parameter,
-    levels = params_list,
-    labels = label_map[params_list]
-  )
-  acf_plot <- ggplot(acf_df, aes(x = Lag, y = ACF)) +
-    geom_hline(yintercept = 0, color = "black", linewidth = 0.4) +
-    geom_segment(aes(xend = Lag, yend = 0), color = "black", linewidth = 0.7) +
-    facet_wrap(~Parameter, ncol = 1, labeller = label_parsed) +
-    labs(x = "Lag", y = "ACF") +
-    theme_classic(base_size = 12, base_family = "serif") +
-    theme(
-      panel.border = element_rect(fill = NA, color = "black", linewidth = 0.5),
-      axis.line = element_blank(),
-      strip.background = element_blank(),
-      strip.text = element_text(face = "bold", size = 12, family = "serif"),
-      legend.position = "none",
-      legend.text = element_text(size = 9, family = "serif")
-    )
-  return(list(acf = acf_plot, trace = trace_plot, density = hist_plot))
-}
-
+```{r setup, message=FALSE, warning=FALSE}
+source("functions.R")
 ```
 
-# 2. Data Loading and Exploratory Data Analysis
+# Montesummano Analysis
 
-## 2.1 Import Dataset
+In this section follows the forecast analysis for Montesummano station measurements.
+
+## 1. Data Loading
 
 ```{r}
-data_oderzo <- find_data("data/Oderzo.csv")
-data_oderzo
-```
-```{r}
-data_montesummano <- find_data("data/Monte_Summano.csv")
-data_montesummano
-```
-```{r}
-data_cittadella <- find_data("data/Cittadella.csv")
-data_cittadella
+data_ms <- find_data("data/Monte_Summano.csv")
+data_ms
+
 ```
 
-## 2.2 Exploratory Visualization (Oderzo)
+## 2. Exploratory Visualization
 
 ```{r, warning=FALSE}
-temp_min <- data_oderzo[[1]]$GEN
-temp_mean <- data_oderzo[[2]]$GEN
-temp_max <- data_oderzo[[3]]$GEN
+temp_min_ms <- data_ms[[1]]$GEN
+temp_mean_ms <- data_ms[[2]]$GEN
+temp_max_ms <- data_ms[[3]]$GEN
 
-plot_hist(temp_min, temp_mean, temp_max, month="January", city="Oderzo")
+plot_hist(temp_min_ms, temp_mean_ms, temp_max_ms, month="January", city="Montesummano")
 
-plot_hist(data_oderzo[[1]]$Medio, data_oderzo[[2]]$Medio, data_oderzo[[3]]$Medio,
-          month="Overall", city="Oderzo")
+plot_hist(data_ms[[1]]$Medio, data_ms[[2]]$Medio, data_ms[[3]]$Medio,
+          month="Overall", city="Montesummano")
+
 ```
 
-# 3. Bayesian Model Preparation (Monte Summano)
+## 3. Bayesian Model Preparation
 
-## 3.1 Summaries and Extraction
+### 3.1 Summaries and Extraction
 
 ```{r}
-ms_means <- data_montesummano[[2]]
+ms_means <- data_ms[[2]]
 ms_means_yearavg <- ms_means$Medio
 
 cat("Yearly means: \n")
@@ -384,226 +57,1067 @@ ms_m_ya_length <- length(ms_means_yearavg)
 cat("Number of yearly means: \n")
 cat(ms_m_ya_length, "\n")
 
-years <- ms_means$Anno
+years_ms <- ms_means$Anno
 cat("Years: \n")
-cat(years, "\n")
+cat(years_ms, "\n")
 
 ```
 
-## 3.2 Standardization
+### 3.2 Standardization
 
 ```{r}
-years_mean <- mean(years)
-cat("Mean year:", years_mean, "\n")
+years_mean_ms <- mean(years_ms)
+cat("Mean year:", years_mean_ms, "\n")
 
-years_sd_ceiling <- ceiling(sd(years))
-cat("Ceiling of standard deviation:", years_sd_ceiling, "\n")
+years_sd_ceiling_ms <- ceiling(sd(years_ms))
+cat("Ceiling of standard deviation:", years_sd_ceiling_ms, "\n")
 
-years_stdd <- (years - years_mean) / years_sd_ceiling
+years_stdd_ms <- (years_ms - years_mean_ms) / years_sd_ceiling_ms
 
-N <- ms_m_ya_length
-cat("Number of observations:", N, "\n")
+N_ms <- ms_m_ya_length
+cat("Number of observations:", N_ms, "\n")
 
-step <- abs(years_stdd[1] - years_stdd[2]) 
-cat("Standardized time step:", step, "\n")
+step_ms <- abs(years_stdd_ms[1] - years_stdd_ms[2]) 
+cat("Standardized time step:", step_ms, "\n")
 
-N_fut_steps <- 10
-cat("Number of future prediction steps:", N_fut_steps, "\n")
+N_fut_steps_ms <- 10
+cat("Number of future prediction steps:", N_fut_steps_ms, "\n")
 
-time_future <- seq(1 + step, by = step, length.out = N_fut_steps) 
+last_observed_time_ms <- max(years_stdd_ms)
+time_future_ms <- seq(last_observed_time_ms + step_ms, by = step_ms, length.out = N_fut_steps_ms) 
+
 cat("Future standardized time points:\n")
-print(time_future)
+print(time_future_ms)
 
-stan_data_sdd <- list(
-  N = N,
-  time = years_stdd,
+stan_data_ms <- list(
+  N = N_ms,
+  time = years_stdd_ms,
   T = ms_means_yearavg,
-  N_future = N_fut_steps,
-  time_future = time_future
+  N_future = N_fut_steps_ms,
+  time_future = time_future_ms
 )
-
 ```
 
-# 4. Linear Model Fit (Stan)
+## 4. Linear Model Fit (Stan)
 
-## 4.1 MCMC Sampling and Convergence Diagnostics
+### 4.1 MCMC Sampling and Convergence Diagnostics
 
 ```{r, warning=FALSE, message=FALSE}
-res <- build_fit_stan_model("./linear_model.stan", stan_data_sdd)
+res_ms <- build_fit_stan_model("./linear_model.stan", stan_data_ms)
 
-mod <- res$mod
-fit <- res$fit
+mod_ms <- res_ms$mod
+fit_ms <- res_ms$fit
 
 stan_T_param_names <- c("T0", "T_dot")
 
 cat("Summary of T parameters:\n")
-fit$summary(stan_T_param_names)
+fit_ms$summary(stan_T_param_names)
 
 cat("Summary of sigma:\n")
-fit$summary("sigma")
+fit_ms$summary("sigma")
 
 cat("Running CmdStan diagnostics...\n")
-fit$cmdstan_diagnose()
+fit_ms$cmdstan_diagnose()
 
 ```
 
-## 4.2 95% Credible Intervals
+### 4.2 95% Credible Intervals
 
 ```{r, warning=FALSE}
-draws_df <- as_draws_df(fit$draws()) 
+draws_df_ms <- as_draws_df(fit_ms$draws()) 
 
-quantiles_T <- lapply(
-  draws_df[, stan_T_param_names],
+quantiles_T_ms <- lapply(
+  draws_df_ms[, stan_T_param_names],
   quantile,
   probs = c(0.025, 0.975)
 )
 
 cat("T0    : [",
-    round(quantiles_T$T0[1], 3), ", ",
-    round(quantiles_T$T0[2], 3), "]\n")
+    round(quantiles_T_ms$T0[1], 3), ", ",
+    round(quantiles_T_ms$T0[2], 3), "]\n")
 
 cat("T_dot : [",
-    round(quantiles_T$T_dot[1], 3), ", ",
-    round(quantiles_T$T_dot[2], 3), "]\n")
-
+    round(quantiles_T_ms$T_dot[1], 3), ", ",
+    round(quantiles_T_ms$T_dot[2], 3), "]\n")
 cat("\n")
 
 ```
 
-## 4.3 Parameter Dependencies (Correlation Analysis)
+### 4.3 Parameter Dependencies (Correlation Analysis)
 
 ```{r}
-cor_plot <- plot_2_correlations(draws_df, stan_T_param_names)
-print(cor_plot$plot)
-cor_plot$cor 
+cor_plot_ms <- plot_2_correlations(draws_df_ms, stan_T_param_names)
+print(cor_plot_ms$plot)
+cor_plot_ms$cor 
 
-cor_plot_sigma_0 <- plot_2_correlations(draws_df, c("T0", "sigma"))
-print(cor_plot_sigma_0$plot)
-cor_plot_sigma_0$cor
+cor_plot_sigma_0_ms <- plot_2_correlations(draws_df_ms, c("T0", "sigma"))
+print(cor_plot_sigma_0_ms$plot)
+cor_plot_sigma_0_ms$cor
 
-cor_plot_sigma_dot <- plot_2_correlations(draws_df, c("T_dot", "sigma"))
-print(cor_plot_sigma_dot$plot)
-cor_plot_sigma_dot$cor
+cor_plot_sigma_dot_ms <- plot_2_correlations(draws_df_ms, c("T_dot", "sigma"))
+print(cor_plot_sigma_dot_ms$plot)
+cor_plot_sigma_dot_ms$cor
 
 ```
 
-## 4.4 Posterior Density and Observational Fitting
+### 4.4 Posterior Density and Observational Fitting
 
 ```{r}
-plot <- plot_posterior(draws_df, my_x_stdd = stan_data_sdd$time, my_y_data = stan_data_sdd$T)
-print(plot)
+plot_ms <- plot_posterior(draws_df_ms, my_x_stdd = stan_data_ms$time, my_y_data = stan_data_ms$T)
+print(plot_ms)
 
 ```
 
-## 4.5 MCMC Diagnostic Plots
+### 4.5 MCMC Diagnostic Plots
 
 ```{r}
-graphs <- plot_various_graphs(fit, c("T0", "T_dot", "sigma"))
+graphs_ms <- plot_various_graphs(fit_ms, c("T0", "T_dot", "sigma"))
 
-print(graphs$trace)
-print(graphs$density)
-print(graphs$acf)
+print(graphs_ms$trace)
+print(graphs_ms$density)
+print(graphs_ms$acf)
 
 ```
 
-# 5. Constant Model Fit (Stan)
+## 5. Constant Model Fit (Stan)
 
-## 5.1 MCMC Sampling and Convergence Diagnostics
+### 5.1 MCMC Sampling and Convergence Diagnostics
 
 ```{r, warning=FALSE}
-res_c <- build_fit_stan_model("./constant_model.stan", stan_data_sdd)
+res_c_ms <- build_fit_stan_model("./constant_model.stan", stan_data_ms)
 
-mod_c <- res_c$mod
-fit_c <- res_c$fit
+mod_c_ms <- res_c_ms$mod
+fit_c_ms <- res_c_ms$fit
 
 cat("Summary of T, sigma parameters:\n")
-fit_c$summary(c("T0", "sigma"))
+fit_c_ms$summary(c("T0", "sigma"))
 
 cat("Running CmdStan diagnostics...\n")
-fit_c$cmdstan_diagnose()
+fit_c_ms$cmdstan_diagnose()
 
 ```
 
-## 5.2 95% Credible Intervals
+### 5.2 95% Credible Intervals
 
 ```{r, warning=FALSE}
-draws_df_c <- as_draws_df(fit_c$draws())
+draws_df_c_ms <- as_draws_df(fit_c_ms$draws())
 
-quantiles_c <- lapply(
-  draws_df_c[, c("T0", "sigma")],
+quantiles_c_ms <- lapply(
+  draws_df_c_ms[, c("T0", "sigma")],
   quantile,
   probs = c(0.025, 0.975)
 )
 
 cat("T0 : [",
-    round(quantiles_c$T0[1], 3), ", ",
-    round(quantiles_c$T0[2], 3), "]\n")
+    round(quantiles_c_ms$T0[1], 3), ", ",
+    round(quantiles_c_ms$T0[2], 3), "]\n")
 
 cat("sigma : [",
-    round(quantiles_c$sigma[1], 3), ", ",
-    round(quantiles_c$sigma[2], 3), "]\n")
-
+    round(quantiles_c_ms$sigma[1], 3), ", ",
+    round(quantiles_c_ms$sigma[2], 3), "]\n")
 cat("\n")
 
 ```
 
-## 5.3 Parameter Dependencies (Correlation Analysis)
+### 5.3 Parameter Dependencies (Correlation Analysis)
 
 ```{r, warning=FALSE}
-cor_plot_c <- plot_2_correlations(draws_df_c, c("T0", "sigma"))
-print(cor_plot_c$plot)
-cor_plot_c$cor 
+cor_plot_c_ms <- plot_2_correlations(draws_df_c_ms, c("T0", "sigma"))
+print(cor_plot_c_ms$plot)
+cor_plot_c_ms$cor 
 
 ```
 
-## 5.4 Posterior Density and Observational Fitting
+### 5.4 Posterior Density and Observational Fitting
 
 ```{r}
-plot_posterior(draws_df_c, my_x_stdd = stan_data_sdd$time, my_y_data = stan_data_sdd$T)
+plot_posterior(draws_df_c_ms, my_x_stdd = stan_data_ms$time, my_y_data = stan_data_ms$T)
 
 ```
 
-## 5.5 MCMC Diagnostic Plots
+### 5.5 MCMC Diagnostic Plots
 
 ```{r}
-c_graphs <- plot_various_graphs(fit_c, c("T0", "sigma"))
-print(c_graphs$trace)
-print(c_graphs$density)
-print(c_graphs$acf)
+c_graphs_ms <- plot_various_graphs(fit_c_ms, c("T0", "sigma"))
+print(c_graphs_ms$trace)
+print(c_graphs_ms$density)
+print(c_graphs_ms$acf)
 
 ```
 
-# 6. Model Comparison
+## 6. Model Comparison
 
-## 6.1 Bayes-Factor Evaluation
+### 6.1 Bayes-Factor Evaluation
 
 ```{r}
+data_list_ms <- list(T_obs = stan_data_ms$T, time_vec = stan_data_ms$time)
+
+log_marg_lik_linear_ms <- bridge_sampler(
+  samples = fit_ms$draws(variables = c("T0", "T_dot", "sigma"), format = "matrix"),
+  log_posterior = log_posterior_linear, data = data_list_ms,
+  lb = c(T0 = -Inf, T_dot = -Inf, sigma = 0),
+  ub = c(T0 = Inf, T_dot = Inf, sigma = Inf),
+  method = "normal", silent = TRUE
+)
+
+log_marg_lik_constant_ms <- bridge_sampler(
+  samples = fit_c_ms$draws(variables = c("T0", "sigma"), format = "matrix"),
+  log_posterior = log_posterior_constant, data = data_list_ms,
+  lb = c(T0 = -Inf, sigma = 0),
+  ub = c(T0 = Inf, sigma = Inf),
+  method = "normal", silent = TRUE
+)
+
+bf_ms <- bayes_factor(log_marg_lik_linear_ms, log_marg_lik_constant_ms)
+
+cat("BAYES FACTOR MODEL COMPARISON\n\n")
+cat("Log Marginal Likelihood (Linear Model):  ", round(log_marg_lik_linear_ms$logml, 3), "\n")
+cat("Log Marginal Likelihood (Constant Model):", round(log_marg_lik_constant_ms$logml, 3), "\n")
+cat("Bayes Factor (M_Lin / M_Const):          ", round(bf_ms$bf, 3), "\n")
 
 ```
 
-## 6.2 Leave-One-Out Cross-Validation (LOO-CV)
+### 6.2 Leave-One-Out Cross-Validation (LOO-CV)
 
 ```{r, warning=FALSE}
-log_lik <- fit$draws("log_lik", format = "matrix")
-loo <- loo(log_lik)
+log_lik_ms <- fit_ms$draws("log_lik", format = "matrix")
+loo_res_ms <- loo(log_lik_ms)
 
-c_log_lik <- fit_c$draws("log_lik", format = "matrix")
-c_loo <- loo(c_log_lik)
+c_log_lik_ms <- fit_c_ms$draws("log_lik", format = "matrix")
+c_loo_res_ms <- loo(c_log_lik_ms)
 
-loo_comp <- compare(loo, c_loo)
-elpd_diff <- loo_comp["elpd_diff"]
-se_diff   <- loo_comp["se"]
+loo_comp_ms <- compare(loo_res_ms, c_loo_res_ms)
+elpd_diff_ms <- loo_comp_ms["elpd_diff"]
+se_diff_ms   <- loo_comp_ms["se"]
 
 cat("LOO-CV MODEL COMPARISON\n\n")
-cat("ELPD difference (M_Lin - M_Const):", round(elpd_diff, 3), "\n")
-cat("Standard error:", round(se_diff, 3), "\n")
+cat("ELPD difference (M_Lin - M_Const):", round(elpd_diff_ms, 3), "\n")
+cat("Standard error:", round(se_diff_ms, 3), "\n")
 
 ```
 
-# 7. 10-Year Posterior Predictions (Annual Mean T)
+## 7. 10-Year Posterior Predictions (Annual Mean T)
 
-...
+According to MC approximation, predictive distribution (fixed t_new) is the mean value over chains of the likelihood:
 
-# 8. Discussion
+$$
+T_{\text{new}}(t) \sim \frac{1}{N_{\text{c}}} \sum_{s=1}^{N_{\text{c}}}
+\mathcal{N}\!\left(T_0^{(s)} + \dot{T}^{(s)}\, t,\ \sigma^2\right)
+$$
+```{r, warning=FALSE, message=FALSE, fig.width=12, fig.height=6, echo=FALSE}
+plot_predictive_comparison(
+  draws_lin = draws_df_ms, 
+  draws_const = draws_df_c_ms, 
+  time_future = time_future_ms, 
+  years_sd = years_sd_ceiling_ms, 
+  years_mean = years_mean_ms
+)
+```
 
-...
+Predictive summary estimations for Linear Model:
+
+```{r}
+summary_lin_ms <- predictive_summaries(
+  chain = draws_df_ms, 
+  time_vector = time_future_ms, 
+  model_type = "linear"
+)
+
+summary_lin_ms$Year <- round((summary_lin_ms$Time_Step * years_sd_ceiling_ms) + years_mean_ms)
+summary_lin_ms_view <- summary_lin_ms[, c("Year", "MAP", "Mean", "SD", "CI_2.5", "CI_97.5")]
+print(round(summary_lin_ms_view, 3))
+```
+Predictive summary estimations for Constant Model (as expected, is constant):
+
+```{r}
+summary_c_ms <- predictive_summaries(
+  chain = draws_df_c_ms, 
+  time_vector = time_future_ms, 
+  model_type = "constant"
+)
+
+summary_c_ms$Year <- round((summary_c_ms$Time_Step * years_sd_ceiling_ms) + years_mean_ms)
+summary_c_ms_view <- summary_c_ms[, c("Year", "MAP", "Mean", "SD", "CI_2.5", "CI_97.5")]
+print(round(summary_c_ms_view, 3))
+```
+Predictions Plot (Linear Model)
+
+```{r, warning=FALSE, message=FALSE, error=FALSE}
+base_plot <- plot_posterior(draws_df_ms, my_x_stdd = stan_data_ms$time, my_y_data = stan_data_ms$T)
+
+full_plot <- base_plot +
+  geom_point(
+    data = summary_lin_ms,
+    aes(x = Time_Step, y = MAP, color = "MAP Pred."), 
+    inherit.aes = FALSE, shape = 16, size = 1.5, stroke = 1.2
+  ) +
+  scale_color_manual(
+    values = c(
+      "Observations" = "black", 
+      "Posterior mean" = "blue", 
+      "MAP Pred." = "red"
+    )
+  )
+
+print(full_plot)
+```
+
+Predictions Plot (Constant Model)
+
+```{r, warning=FALSE, message=FALSE, error=FALSE}
+base_plot <- plot_posterior(draws_df_c_ms, my_x_stdd = stan_data_ms$time, my_y_data = stan_data_ms$T)
+
+full_plot <- base_plot +
+  geom_point(
+    data = summary_c_ms,
+    aes(x = Time_Step, y = MAP, color = "MAP Pred."), 
+    inherit.aes = FALSE, shape = 16, size = 1.5, stroke = 1.2
+  ) +
+  scale_color_manual(
+    values = c(
+      "Observations" = "black", 
+      "Posterior mean" = "blue", 
+      "MAP Pred." = "red"
+    )
+  )
+
+print(full_plot)
+```
+
+---
+
+# Oderzo Analysis
+
+In this section follows the forecast analysis for Oderzo station measurements.
+
+## 1. Data Loading
+
+```{r}
+data_od <- find_data("data/Oderzo.csv")
+data_od
+
+```
+
+## 2. Exploratory Visualization
+
+```{r, warning=FALSE}
+temp_min_od <- data_od[[1]]$GEN
+temp_mean_od <- data_od[[2]]$GEN
+temp_max_od <- data_od[[3]]$GEN
+
+plot_hist(temp_min_od, temp_mean_od, temp_max_od, month="January", city="Oderzo")
+
+plot_hist(data_od[[1]]$Medio, data_od[[2]]$Medio, data_od[[3]]$Medio,
+          month="Overall", city="Oderzo")
+
+```
+
+## 3. Bayesian Model Preparation
+
+### 3.1 Summaries and Extraction
+
+```{r}
+od_means <- data_od[[2]]
+od_means_yearavg <- od_means$Medio
+
+cat("Yearly means: \n")
+cat(od_means_yearavg, "\n")
+
+od_m_ya_length <- length(od_means_yearavg)
+cat("Number of yearly means: \n")
+cat(od_m_ya_length, "\n")
+
+years_od <- od_means$Anno
+cat("Years: \n")
+cat(years_od, "\n")
+
+```
+
+### 3.2 Standardization
+
+```{r}
+years_mean_od <- mean(years_od)
+cat("Mean year:", years_mean_od, "\n")
+
+years_sd_ceiling_od <- ceiling(sd(years_od))
+cat("Ceiling of standard deviation:", years_sd_ceiling_od, "\n")
+
+years_stdd_od <- (years_od - years_mean_od) / years_sd_ceiling_od
+
+N_od <- od_m_ya_length
+cat("Number of observations:", N_od, "\n")
+
+step_od <- abs(years_stdd_od[1] - years_stdd_od[2]) 
+cat("Standardized time step:", step_od, "\n")
+
+N_fut_steps_od <- 10
+cat("Number of future prediction steps:", N_fut_steps_od, "\n")
+
+last_observed_time_od <- max(years_stdd_od)
+time_future_od <- seq(last_observed_time_od + step_od, by = step_od, length.out = N_fut_steps_od)
+
+cat("Future standardized time points:\n")
+print(time_future_od)
+
+stan_data_od <- list(
+  N = N_od,
+  time = years_stdd_od,
+  T = od_means_yearavg,
+  N_future = N_fut_steps_od,
+  time_future = time_future_od
+)
+
+```
+
+## 4. Linear Model Fit (Stan)
+
+### 4.1 MCMC Sampling and Convergence Diagnostics
+
+```{r, warning=FALSE, message=FALSE}
+res_od <- build_fit_stan_model("./linear_model.stan", stan_data_od)
+
+mod_od <- res_od$mod
+fit_od <- res_od$fit
+
+cat("Summary of T parameters:\n")
+fit_od$summary(stan_T_param_names)
+
+cat("Summary of sigma:\n")
+fit_od$summary("sigma")
+
+cat("Running CmdStan diagnostics...\n")
+fit_od$cmdstan_diagnose()
+
+```
+
+### 4.2 95% Credible Intervals
+
+```{r, warning=FALSE}
+draws_df_od <- as_draws_df(fit_od$draws()) 
+
+quantiles_T_od <- lapply(
+  draws_df_od[, stan_T_param_names],
+  quantile,
+  probs = c(0.025, 0.975)
+)
+
+cat("T0    : [",
+    round(quantiles_T_od$T0[1], 3), ", ",
+    round(quantiles_T_od$T0[2], 3), "]\n")
+
+cat("T_dot : [",
+    round(quantiles_T_od$T_dot[1], 3), ", ",
+    round(quantiles_T_od$T_dot[2], 3), "]\n")
+cat("\n")
+
+```
+
+### 4.3 Parameter Dependencies (Correlation Analysis)
+
+```{r, warning=FALSE}
+cor_plot_od <- plot_2_correlations(draws_df_od, stan_T_param_names)
+print(cor_plot_od$plot)
+cor_plot_od$cor 
+
+cor_plot_sigma_0_od <- plot_2_correlations(draws_df_od, c("T0", "sigma"))
+print(cor_plot_sigma_0_od$plot)
+cor_plot_sigma_0_od$cor
+
+cor_plot_sigma_dot_od <- plot_2_correlations(draws_df_od, c("T_dot", "sigma"))
+print(cor_plot_sigma_dot_od$plot)
+cor_plot_sigma_dot_od$cor
+
+```
+
+### 4.4 Posterior Density and Observational Fitting
+
+```{r}
+plot_od <- plot_posterior(draws_df_od, my_x_stdd = stan_data_od$time, my_y_data = stan_data_od$T)
+print(plot_od)
+
+```
+
+### 4.5 MCMC Diagnostic Plots
+
+```{r}
+graphs_od <- plot_various_graphs(fit_od, c("T0", "T_dot", "sigma"))
+
+print(graphs_od$trace)
+print(graphs_od$density)
+print(graphs_od$acf)
+
+```
+
+## 5. Constant Model Fit (Stan)
+
+### 5.1 MCMC Sampling and Convergence Diagnostics
+
+```{r, warning=FALSE}
+res_c_od <- build_fit_stan_model("./constant_model.stan", stan_data_od)
+
+mod_c_od <- res_c_od$mod
+fit_c_od <- res_c_od$fit
+
+cat("Summary of T, sigma parameters:\n")
+fit_c_od$summary(c("T0", "sigma"))
+
+cat("Running CmdStan diagnostics...\n")
+fit_c_od$cmdstan_diagnose()
+
+```
+
+### 5.2 95% Credible Intervals
+
+```{r, warning=FALSE}
+draws_df_c_od <- as_draws_df(fit_c_od$draws())
+
+quantiles_c_od <- lapply(
+  draws_df_c_od[, c("T0", "sigma")],
+  quantile,
+  probs = c(0.025, 0.975)
+)
+
+cat("T0 : [",
+    round(quantiles_c_od$T0[1], 3), ", ",
+    round(quantiles_c_od$T0[2], 3), "]\n")
+
+cat("sigma : [",
+    round(quantiles_c_od$sigma[1], 3), ", ",
+    round(quantiles_c_od$sigma[2], 3), "]\n")
+cat("\n")
+
+```
+
+### 5.3 Parameter Dependencies (Correlation Analysis)
+
+```{r, warning=FALSE}
+cor_plot_c_od <- plot_2_correlations(draws_df_c_od, c("T0", "sigma"))
+print(cor_plot_c_od$plot)
+cor_plot_c_od$cor 
+
+```
+
+### 5.4 Posterior Density and Observational Fitting
+
+```{r}
+plot_posterior(draws_df_c_od, my_x_stdd = stan_data_od$time, my_y_data = stan_data_od$T)
+
+```
+
+### 5.5 MCMC Diagnostic Plots
+
+```{r}
+c_graphs_od <- plot_various_graphs(fit_c_od, c("T0", "sigma"))
+print(c_graphs_od$trace)
+print(c_graphs_od$density)
+print(c_graphs_od$acf)
+
+```
+
+## 6. Model Comparison
+
+### 6.1 Bayes-Factor Evaluation
+
+```{r}
+data_list_od <- list(T_obs = stan_data_od$T, time_vec = stan_data_od$time)
+
+log_marg_lik_linear_od <- bridge_sampler(
+  samples = fit_od$draws(variables = c("T0", "T_dot", "sigma"), format = "matrix"),
+  log_posterior = log_posterior_linear, data = data_list_od,
+  lb = c(T0 = -Inf, T_dot = -Inf, sigma = 0),
+  ub = c(T0 = Inf, T_dot = Inf, sigma = Inf),
+  method = "normal", silent = TRUE
+)
+
+log_marg_lik_constant_od <- bridge_sampler(
+  samples = fit_c_od$draws(variables = c("T0", "sigma"), format = "matrix"),
+  log_posterior = log_posterior_constant, data = data_list_od,
+  lb = c(T0 = -Inf, sigma = 0),
+  ub = c(T0 = Inf, sigma = Inf),
+  method = "normal", silent = TRUE
+)
+
+bf_od <- bayes_factor(log_marg_lik_linear_od, log_marg_lik_constant_od)
+
+cat("BAYES FACTOR MODEL COMPARISON\n\n")
+cat("Log Marginal Likelihood (Linear Model):  ", round(log_marg_lik_linear_od$logml, 3), "\n")
+cat("Log Marginal Likelihood (Constant Model):", round(log_marg_lik_constant_od$logml, 3), "\n")
+cat("Bayes Factor (M_Lin / M_Const):          ", round(bf_od$bf, 3), "\n")
+
+```
+
+### 6.2 Leave-One-Out Cross-Validation (LOO-CV)
+
+```{r, warning=FALSE}
+log_lik_od <- fit_od$draws("log_lik", format = "matrix")
+loo_res_od <- loo(log_lik_od)
+
+c_log_lik_od <- fit_c_od$draws("log_lik", format = "matrix")
+c_loo_res_od <- loo(c_log_lik_od)
+
+loo_comp_od <- compare(loo_res_od, c_loo_res_od)
+elpd_diff_od <- loo_comp_od["elpd_diff"]
+se_diff_od   <- loo_comp_od["se"]
+
+cat("LOO-CV MODEL COMPARISON\n\n")
+cat("ELPD difference (M_Lin - M_Const):", round(elpd_diff_od, 3), "\n")
+cat("Standard error:", round(se_diff_od, 3), "\n")
+
+```
+
+## 7. 10-Year Posterior Predictions (Annual Mean T)
+
+According to MC approximation, predictive distribution (fixed t_new) is the mean value over chains of the likelihood:
+
+$$
+T_{\text{new}}(t) \sim \frac{1}{N_{\text{c}}} \sum_{s=1}^{N_{\text{c}}}
+\mathcal{N}\!\left(T_0^{(s)} + \dot{T}^{(s)}\, t,\ \sigma^2\right)
+$$
+
+
+```{r, warning=FALSE, message=FALSE, fig.width=12, fig.height=6, echo=FALSE}
+plot_predictive_comparison(
+  draws_lin = draws_df_od, 
+  draws_const = draws_df_c_od, 
+  time_future = time_future_od, 
+  years_sd = years_sd_ceiling_od, 
+  years_mean = years_mean_od
+)
+```
+Predictive summary estimations for Linear Model:
+
+```{r}
+summary_lin_od <- predictive_summaries(
+  chain = draws_df_od, 
+  time_vector = time_future_od, 
+  model_type = "linear"
+)
+
+summary_lin_od$Year <- round((summary_lin_od$Time_Step * years_sd_ceiling_od) + years_mean_od)
+summary_lin_od_view <- summary_lin_od[, c("Year", "MAP", "Mean", "SD", "CI_2.5", "CI_97.5")]
+print(round(summary_lin_od_view, 3))
+```
+
+Predictive summary estimations for Constant Model (as expected, is constant):
+
+```{r}
+summary_c_od <- predictive_summaries(
+  chain = draws_df_c_od, 
+  time_vector = time_future_od, 
+  model_type = "constant"
+)
+
+summary_c_od$Year <- round((summary_c_od$Time_Step * years_sd_ceiling_od) + years_mean_od)
+summary_c_od_view <- summary_c_od[, c("Year", "MAP", "Mean", "SD", "CI_2.5", "CI_97.5")]
+print(round(summary_c_od_view, 3))
+```
+Predictions Plot (Linear Model)
+
+```{r, warning=FALSE, message=FALSE, error=FALSE}
+base_plot <- plot_posterior(draws_df_od, my_x_stdd = stan_data_od$time, my_y_data = stan_data_od$T)
+
+full_plot <- base_plot +
+  geom_point(
+    data = summary_lin_od,
+    aes(x = Time_Step, y = MAP, color = "MAP Pred."), 
+    inherit.aes = FALSE, shape = 16, size = 1.5, stroke = 1.2
+  ) +
+  scale_color_manual(
+    values = c(
+      "Observations" = "black", 
+      "Posterior mean" = "blue", 
+      "MAP Pred." = "red"
+    )
+  )
+
+print(full_plot)
+```
+
+Predictions Plot (Constant Model)
+
+```{r, warning=FALSE, message=FALSE, error=FALSE}
+base_plot <- plot_posterior(draws_df_c_od, my_x_stdd = stan_data_od$time, my_y_data = stan_data_od$T)
+
+full_plot <- base_plot +
+  geom_point(
+    data = summary_c_od,
+    aes(x = Time_Step, y = MAP, color = "MAP Pred."), 
+    inherit.aes = FALSE, shape = 16, size = 1.5, stroke = 1.2
+  ) +
+  scale_color_manual(
+    values = c(
+      "Observations" = "black", 
+      "Posterior mean" = "blue", 
+      "MAP Pred." = "red"
+    )
+  )
+
+print(full_plot)
+```
+
+---
+
+# Cittadella Analysis
+
+In this section follows the forecast analysis for Cittadella station measurements.
+
+## 1. Data Loading
+
+```{r}
+data_ci <- find_data("data/Cittadella.csv")
+data_ci
+
+```
+
+## 2. Exploratory Visualization
+
+```{r, warning=FALSE}
+temp_min_ci <- data_ci[[1]]$GEN
+temp_mean_ci <- data_ci[[2]]$GEN
+temp_max_ci <- data_ci[[3]]$GEN
+
+plot_hist(temp_min_ci, temp_mean_ci, temp_max_ci, month="January", city="Cittadella")
+
+plot_hist(data_ci[[1]]$Medio, data_ci[[2]]$Medio, data_ci[[3]]$Medio,
+          month="Overall", city="Cittadella")
+
+```
+
+## 3. Bayesian Model Preparation
+
+### 3.1 Summaries and Extraction
+
+```{r}
+ci_means <- data_ci[[2]]
+ci_means_yearavg <- ci_means$Medio
+
+cat("Yearly means: \n")
+cat(ci_means_yearavg, "\n")
+
+ci_m_ya_length <- length(ci_means_yearavg)
+cat("Number of yearly means: \n")
+cat(ci_m_ya_length, "\n")
+
+years_ci <- ci_means$Anno
+cat("Years: \n")
+cat(years_ci, "\n")
+
+```
+
+### 3.2 Standardization
+
+```{r}
+years_mean_ci <- mean(years_ci)
+cat("Mean year:", years_mean_ci, "\n")
+
+years_sd_ceiling_ci <- ceiling(sd(years_ci))
+cat("Ceiling of standard deviation:", years_sd_ceiling_ci, "\n")
+
+years_stdd_ci <- (years_ci - years_mean_ci) / years_sd_ceiling_ci
+
+N_ci <- ci_m_ya_length
+cat("Number of observations:", N_ci, "\n")
+
+step_ci <- abs(years_stdd_ci[1] - years_stdd_ci[2]) 
+cat("Standardized time step:", step_ci, "\n")
+
+N_fut_steps_ci <- 10
+cat("Number of future prediction steps:", N_fut_steps_ci, "\n")
+
+last_observed_time_ci <- max(years_stdd_ci)
+time_future_ci <- seq(last_observed_time_ci + step_ms, by = step_ci, length.out = N_fut_steps_ci)
+
+cat("Future standardized time points:\n")
+print(time_future_ci)
+
+stan_data_ci <- list(
+  N = N_ci,
+  time = years_stdd_ci,
+  T = ci_means_yearavg,
+  N_future = N_fut_steps_ci,
+  time_future = time_future_ci
+)
+
+```
+
+## 4. Linear Model Fit (Stan)
+
+### 4.1 MCMC Sampling and Convergence Diagnostics
+
+```{r, warning=FALSE, message=FALSE}
+res_ci <- build_fit_stan_model("./linear_model.stan", stan_data_ci)
+
+mod_ci <- res_ci$mod
+fit_ci <- res_ci$fit
+
+cat("Summary of T parameters:\n")
+fit_ci$summary(stan_T_param_names)
+
+cat("Summary of sigma:\n")
+fit_ci$summary("sigma")
+
+cat("Running CmdStan diagnostics...\n")
+fit_ci$cmdstan_diagnose()
+
+```
+
+### 4.2 95% Credible Intervals
+
+```{r, warning=FALSE}
+draws_df_ci <- as_draws_df(fit_ci$draws()) 
+
+quantiles_T_ci <- lapply(
+  draws_df_ci[, stan_T_param_names],
+  quantile,
+  probs = c(0.025, 0.975)
+)
+
+cat("T0    : [",
+    round(quantiles_T_ci$T0[1], 3), ", ",
+    round(quantiles_T_ci$T0[2], 3), "]\n")
+
+cat("T_dot : [",
+    round(quantiles_T_ci$T_dot[1], 3), ", ",
+    round(quantiles_T_ci$T_dot[2], 3), "]\n")
+cat("\n")
+
+```
+
+### 4.3 Parameter Dependencies (Correlation Analysis)
+
+```{r, warning=FALSE}
+cor_plot_ci <- plot_2_correlations(draws_df_ci, stan_T_param_names)
+print(cor_plot_ci$plot)
+cor_plot_ci$cor 
+
+cor_plot_sigma_0_ci <- plot_2_correlations(draws_df_ci, c("T0", "sigma"))
+print(cor_plot_sigma_0_ci$plot)
+cor_plot_sigma_0_ci$cor
+
+cor_plot_sigma_dot_ci <- plot_2_correlations(draws_df_ci, c("T_dot", "sigma"))
+print(cor_plot_sigma_dot_ci$plot)
+cor_plot_sigma_dot_ci$cor
+
+```
+
+### 4.4 Posterior Density and Observational Fitting
+
+```{r}
+plot_ci <- plot_posterior(draws_df_ci, my_x_stdd = stan_data_ci$time, my_y_data = stan_data_ci$T)
+print(plot_ci)
+
+```
+
+### 4.5 MCMC Diagnostic Plots
+
+```{r}
+graphs_ci <- plot_various_graphs(fit_ci, c("T0", "T_dot", "sigma"))
+
+print(graphs_ci$trace)
+print(graphs_ci$density)
+print(graphs_ci$acf)
+
+```
+
+## 5. Constant Model Fit (Stan)
+
+### 5.1 MCMC Sampling and Convergence Diagnostics
+
+```{r, warning=FALSE}
+res_c_ci <- build_fit_stan_model("./constant_model.stan", stan_data_ci)
+
+mod_c_ci <- res_c_ci$mod
+fit_c_ci <- res_c_ci$fit
+
+cat("Summary of T, sigma parameters:\n")
+fit_c_ci$summary(c("T0", "sigma"))
+
+cat("Running CmdStan diagnostics...\n")
+fit_c_ci$cmdstan_diagnose()
+
+```
+
+### 5.2 95% Credible Intervals
+
+```{r, warning=FALSE}
+draws_df_c_ci <- as_draws_df(fit_c_ci$draws())
+
+quantiles_c_ci <- lapply(
+  draws_df_c_ci[, c("T0", "sigma")],
+  quantile,
+  probs = c(0.025, 0.975)
+)
+
+cat("T0 : [",
+    round(quantiles_c_ci$T0[1], 3), ", ",
+    round(quantiles_c_ci$T0[2], 3), "]\n")
+
+cat("sigma : [",
+    round(quantiles_c_ci$sigma[1], 3), ", ",
+    round(quantiles_c_ci$sigma[2], 3), "]\n")
+cat("\n")
+
+```
+
+### 5.3 Parameter Dependencies (Correlation Analysis)
+
+```{r, warning=FALSE}
+cor_plot_c_ci <- plot_2_correlations(draws_df_c_ci, c("T0", "sigma"))
+print(cor_plot_c_ci$plot)
+cor_plot_c_ci$cor 
+
+```
+
+### 5.4 Posterior Density and Observational Fitting
+
+```{r}
+plot_posterior(draws_df_c_ci, my_x_stdd = stan_data_ci$time, my_y_data = stan_data_ci$T)
+
+```
+
+### 5.5 MCMC Diagnostic Plots
+
+```{r}
+c_graphs_ci <- plot_various_graphs(fit_c_ci, c("T0", "sigma"))
+print(c_graphs_ci$trace)
+print(c_graphs_ci$density)
+print(c_graphs_ci$acf)
+
+```
+
+## 6. Model Comparison
+
+### 6.1 Bayes-Factor Evaluation
+
+```{r}
+data_list_ci <- list(T_obs = stan_data_ci$T, time_vec = stan_data_ci$time)
+
+log_marg_lik_linear_ci <- bridge_sampler(
+  samples = fit_ci$draws(variables = c("T0", "T_dot", "sigma"), format = "matrix"),
+  log_posterior = log_posterior_linear, data = data_list_ci,
+  lb = c(T0 = -Inf, T_dot = -Inf, sigma = 0),
+  ub = c(T0 = Inf, T_dot = Inf, sigma = Inf),
+  method = "normal", silent = TRUE
+)
+
+log_marg_lik_constant_ci <- bridge_sampler(
+  samples = fit_c_ci$draws(variables = c("T0", "sigma"), format = "matrix"),
+  log_posterior = log_posterior_constant, data = data_list_ci,
+  lb = c(T0 = -Inf, sigma = 0),
+  ub = c(T0 = Inf, sigma = Inf),
+  method = "normal", silent = TRUE
+)
+
+bf_ci <- bayes_factor(log_marg_lik_linear_ci, log_marg_lik_constant_ci)
+
+cat("BAYES FACTOR MODEL COMPARISON\n\n")
+cat("Log Marginal Likelihood (Linear Model):  ", round(log_marg_lik_linear_ci$logml, 3), "\n")
+cat("Log Marginal Likelihood (Constant Model):", round(log_marg_lik_constant_ci$logml, 3), "\n")
+cat("Bayes Factor (M_Lin / M_Const):          ", round(bf_ci$bf, 3), "\n")
+
+```
+
+### 6.2 Leave-One-Out Cross-Validation (LOO-CV)
+
+```{r, warning=FALSE}
+log_lik_ci <- fit_ci$draws("log_lik", format = "matrix")
+loo_res_ci <- loo(log_lik_ci)
+
+c_log_lik_ci <- fit_c_ci$draws("log_lik", format = "matrix")
+c_loo_res_ci <- loo(c_log_lik_ci)
+
+loo_comp_ci <- compare(loo_res_ci, c_loo_res_ci)
+elpd_diff_ci <- loo_comp_ci["elpd_diff"]
+se_diff_ci   <- loo_comp_ci["se"]
+
+cat("LOO-CV MODEL COMPARISON\n\n")
+cat("ELPD difference (M_Lin - M_Const):", round(elpd_diff_ci, 3), "\n")
+cat("Standard error:", round(se_diff_ci, 3), "\n")
+
+```
+
+## 7. 10-Year Posterior Predictions (Annual Mean T)
+
+According to MC approximation, predictive distribution (fixed t_new) is the mean value over chains of the likelihood:
+
+$$
+T_{\text{new}}(t) \sim \frac{1}{N_{\text{c}}} \sum_{s=1}^{N_{\text{c}}}
+\mathcal{N}\!\left(T_0^{(s)} + \dot{T}^{(s)}\, t,\ \sigma^2\right)
+$$
+```{r, warning=FALSE, message=FALSE, fig.width=12, fig.height=6, echo=FALSE}
+plot_predictive_comparison(
+  draws_lin = draws_df_ci, 
+  draws_const = draws_df_c_ci, 
+  time_future = time_future_ci, 
+  years_sd = years_sd_ceiling_ci, 
+  years_mean = years_mean_ci
+)
+```
+```{r}
+summary_lin_ci <- predictive_summaries(
+  chain = draws_df_ci, 
+  time_vector = time_future_ci, 
+  model_type = "linear"
+)
+
+summary_lin_ci$Year <- round((summary_lin_ci$Time_Step * years_sd_ceiling_ci) + years_mean_ci)
+summary_lin_ci_view <- summary_lin_ci[, c("Year", "MAP", "Mean", "SD", "CI_2.5", "CI_97.5")]
+print(round(summary_lin_ci_view, 3))
+```
+
+Predictive summary estimations for Constant Model (as expected, is constant):
+
+```{r}
+summary_c_ci <- predictive_summaries(
+  chain = draws_df_c_ci, 
+  time_vector = time_future_ci, 
+  model_type = "constant"
+)
+
+summary_c_ci$Year <- round((summary_c_ci$Time_Step * years_sd_ceiling_ci) + years_mean_ci)
+summary_c_ci_view <- summary_c_ci[, c("Year", "MAP", "Mean", "SD", "CI_2.5", "CI_97.5")]
+print(round(summary_c_ci_view, 3))
+```
+Predictions Plot (Linear Model)
+
+```{r, warning=FALSE, message=FALSE, error=FALSE}
+base_plot <- plot_posterior(draws_df_ci, my_x_stdd = stan_data_ci$time, my_y_data = stan_data_ci$T)
+
+full_plot <- base_plot +
+  geom_point(
+    data = summary_lin_ci,
+    aes(x = Time_Step, y = MAP, color = "MAP Pred."), 
+    inherit.aes = FALSE, shape = 16, size = 1.5, stroke = 1.2
+  ) +
+  scale_color_manual(
+    values = c(
+      "Observations" = "black", 
+      "Posterior mean" = "blue", 
+      "MAP Pred." = "red"
+    )
+  )
+
+print(full_plot)
+```
+
+Predictions Plot (Constant Model)
+
+```{r, warning=FALSE, message=FALSE, error=FALSE}
+base_plot <- plot_posterior(draws_df_c_ci, my_x_stdd = stan_data_ci$time, my_y_data = stan_data_ci$T)
+
+full_plot <- base_plot +
+  geom_point(
+    data = summary_c_ci,
+    aes(x = Time_Step, y = MAP, color = "MAP Pred."), 
+    inherit.aes = FALSE, shape = 16, size = 1.5, stroke = 1.2
+  ) +
+  scale_color_manual(
+    values = c(
+      "Observations" = "black", 
+      "Posterior mean" = "blue", 
+      "MAP Pred." = "red"
+    )
+  )
+
+print(full_plot)
+```
