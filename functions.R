@@ -76,14 +76,24 @@ plot_hist <- function(temp_min, temp_mean, temp_max, month = "", city = "") {
   par(mar = c(5, 4, 4, 7) + 0.1)
   
   plot(year, temp_max,
-       type = "h", 
-       lwd = 10,
-       lend = 1,
-       ylim = c(t_min * 1.2, t_max * 1.2),
+       type = "n",
+       ylim = c(-5, 35),
        main = paste("Temperature in", month, "-", city),
        xlab = "Year",
-       ylab = "Temperature (°C)",
-       col = "red", border = "white")
+       ylab = "Temperature (°C)")
+  
+  grid(nx = NULL,
+       ny = NULL,
+       col = "lightgray",
+       lty = "dotted",
+       lwd = 1)
+  
+  lines(year, temp_max, 
+        type = "h", 
+        lwd = 10,
+        lend = 1,
+        pch = 16, 
+        col = "red", border = "white")
   
   lines(year, temp_mean, 
         type = "h", 
@@ -102,13 +112,12 @@ plot_hist <- function(temp_min, temp_mean, temp_max, month = "", city = "") {
   abline(h = 0, col = "gray50", lwd = 1, lty = 2)
   
   legend("topright", 
-         legend = c("Max", "Mean", "Min"),
-         col = c("red", "darkorange", "blue"), 
-         lwd = 2, 
-         pch = 16, 
-         bty = "n",
-         xpd = TRUE,
-         inset = c(-0.22, 0)) 
+        legend = c("Max", "Mean", "Min"),
+        fill = c("red", "darkorange", "blue"),
+        border = NA,
+        bty = "n",
+        xpd = TRUE,
+        inset = c(-0.22, 0))
 }
 
 # STAN FIT FUNCTION
