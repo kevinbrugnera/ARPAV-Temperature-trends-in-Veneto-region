@@ -31,15 +31,25 @@ data_ms
 ## 2. Exploratory Visualization
 
 ```{r, warning=FALSE}
-temp_min_ms <- data_ms[[1]]$GEN
-temp_mean_ms <- data_ms[[2]]$GEN
-temp_max_ms <- data_ms[[3]]$GEN
 
-plot_hist(temp_min_ms, temp_mean_ms, temp_max_ms, month="January", city="Montesummano")
+month <- c("GEN", "FEB", "MAR", "APR", "MAG", "GIU", 
+                  "LUG", "AGO", "SET", "OTT", "NOV", "DIC", "Medio")
 
-plot_hist(data_ms[[1]]$Medio, data_ms[[2]]$Medio, data_ms[[3]]$Medio,
-          month="Overall", city="Montesummano")
+month_name <- c("January", "February", "March", "April", "May", "June", 
+                      "July", "August", "September", "October", "November",                               "December", "Mean")
 
+for (i in seq_along(month)) {
+  m <- month[i]
+  m_name <- month_name[i]
+  
+  temp_min_ms  <- data_ms[[1]][[m]]
+  temp_mean_ms <- data_ms[[2]][[m]]
+  temp_max_ms  <- data_ms[[3]][[m]]
+  
+  plot_hist(temp_min_ms, temp_mean_ms, temp_max_ms, 
+            month = m_name, 
+            city = "Montesummano")
+}
 ```
 
 ## 3. Bayesian Model Preparation
@@ -318,6 +328,7 @@ $$
 T_{\text{new}}(t) \sim \frac{1}{N_{\text{c}}} \sum_{s=1}^{N_{\text{c}}}
 \mathcal{N}\!\left(T_0^{(s)} + \dot{T}^{(s)}\, t,\ \sigma^2\right)
 $$
+
 ```{r, warning=FALSE, message=FALSE, fig.width=12, fig.height=6, echo=FALSE}
 plot_predictive_comparison(
   draws_lin = draws_df_ms, 
@@ -341,6 +352,7 @@ summary_lin_ms$Year <- round((summary_lin_ms$Time_Step * years_sd_ceiling_ms) + 
 summary_lin_ms_view <- summary_lin_ms[, c("Year", "MAP", "Mean", "SD", "CI_2.5", "CI_97.5")]
 print(round(summary_lin_ms_view, 3))
 ```
+
 Predictive summary estimations for Constant Model (as expected, is constant):
 
 ```{r}
@@ -354,6 +366,7 @@ summary_c_ms$Year <- round((summary_c_ms$Time_Step * years_sd_ceiling_ms) + year
 summary_c_ms_view <- summary_c_ms[, c("Year", "MAP", "Mean", "SD", "CI_2.5", "CI_97.5")]
 print(round(summary_c_ms_view, 3))
 ```
+
 Predictions Plot (Linear Model)
 
 ```{r, warning=FALSE, message=FALSE, error=FALSE}
@@ -394,7 +407,7 @@ full_plot <- plot_ms_c +
 print(full_plot)
 ```
 
----
+------------------------------------------------------------------------
 
 # Oderzo Analysis
 
@@ -411,14 +424,25 @@ data_od
 ## 2. Exploratory Visualization
 
 ```{r, warning=FALSE}
-temp_min_od <- data_od[[1]]$GEN
-temp_mean_od <- data_od[[2]]$GEN
-temp_max_od <- data_od[[3]]$GEN
 
-plot_hist(temp_min_od, temp_mean_od, temp_max_od, month="January", city="Oderzo")
+month <- c("GEN", "FEB", "MAR", "APR", "MAG", "GIU", 
+                  "LUG", "AGO", "SET", "OTT", "NOV", "DIC", "Medio")
 
-plot_hist(data_od[[1]]$Medio, data_od[[2]]$Medio, data_od[[3]]$Medio,
-          month="Overall", city="Oderzo")
+month_name <- c("January", "February", "March", "April", "May", "June", 
+                      "July", "August", "September", "October", "November",                               "December", "Mean")
+
+for (i in seq_along(month)) {
+  m <- month[i]
+  m_name <- month_name[i]
+  
+  temp_min_ms  <- data_od[[1]][[m]]
+  temp_mean_ms <- data_od[[2]][[m]]
+  temp_max_ms  <- data_od[[3]][[m]]
+  
+  plot_hist(temp_min_ms, temp_mean_ms, temp_max_ms, 
+            month = m_name, 
+            city = "Oderzo")
+}
 
 ```
 
@@ -697,7 +721,6 @@ T_{\text{new}}(t) \sim \frac{1}{N_{\text{c}}} \sum_{s=1}^{N_{\text{c}}}
 \mathcal{N}\!\left(T_0^{(s)} + \dot{T}^{(s)}\, t,\ \sigma^2\right)
 $$
 
-
 ```{r, warning=FALSE, message=FALSE, fig.width=12, fig.height=6, echo=FALSE}
 plot_predictive_comparison(
   draws_lin = draws_df_od, 
@@ -707,6 +730,7 @@ plot_predictive_comparison(
   years_mean = years_mean_od
 )
 ```
+
 Predictive summary estimations for Linear Model:
 
 ```{r}
@@ -734,6 +758,7 @@ summary_c_od$Year <- round((summary_c_od$Time_Step * years_sd_ceiling_od) + year
 summary_c_od_view <- summary_c_od[, c("Year", "MAP", "Mean", "SD", "CI_2.5", "CI_97.5")]
 print(round(summary_c_od_view, 3))
 ```
+
 Predictions Plot (Linear Model)
 
 ```{r, warning=FALSE, message=FALSE, error=FALSE}
@@ -774,7 +799,7 @@ full_plot <- plot_od_c +
 print(full_plot)
 ```
 
----
+------------------------------------------------------------------------
 
 # Cittadella Analysis
 
@@ -791,15 +816,25 @@ data_ci
 ## 2. Exploratory Visualization
 
 ```{r, warning=FALSE}
-temp_min_ci <- data_ci[[1]]$GEN
-temp_mean_ci <- data_ci[[2]]$GEN
-temp_max_ci <- data_ci[[3]]$GEN
 
-plot_hist(temp_min_ci, temp_mean_ci, temp_max_ci, month="January", city="Cittadella")
+month <- c("GEN", "FEB", "MAR", "APR", "MAG", "GIU", 
+                  "LUG", "AGO", "SET", "OTT", "NOV", "DIC", "Medio")
 
-plot_hist(data_ci[[1]]$Medio, data_ci[[2]]$Medio, data_ci[[3]]$Medio,
-          month="Overall", city="Cittadella")
+month_name <- c("January", "February", "March", "April", "May", "June", 
+                      "July", "August", "September", "October", "November",                               "December", "Mean")
 
+for (i in seq_along(month)) {
+  m <- month[i]
+  m_name <- month_name[i]
+  
+  temp_min_ms  <- data_ci[[1]][[m]]
+  temp_mean_ms <- data_ci[[2]][[m]]
+  temp_max_ms  <- data_ci[[3]][[m]]
+  
+  plot_hist(temp_min_ms, temp_mean_ms, temp_max_ms, 
+            month = m_name, 
+            city = "Cittadella")
+}
 ```
 
 ## 3. Bayesian Model Preparation
@@ -1078,6 +1113,7 @@ $$
 T_{\text{new}}(t) \sim \frac{1}{N_{\text{c}}} \sum_{s=1}^{N_{\text{c}}}
 \mathcal{N}\!\left(T_0^{(s)} + \dot{T}^{(s)}\, t,\ \sigma^2\right)
 $$
+
 ```{r, warning=FALSE, message=FALSE, fig.width=12, fig.height=6, echo=FALSE}
 plot_predictive_comparison(
   draws_lin = draws_df_ci, 
@@ -1087,6 +1123,7 @@ plot_predictive_comparison(
   years_mean = years_mean_ci
 )
 ```
+
 ```{r}
 summary_lin_ci <- predictive_summaries(
   chain = draws_df_ci, 
@@ -1112,6 +1149,7 @@ summary_c_ci$Year <- round((summary_c_ci$Time_Step * years_sd_ceiling_ci) + year
 summary_c_ci_view <- summary_c_ci[, c("Year", "MAP", "Mean", "SD", "CI_2.5", "CI_97.5")]
 print(round(summary_c_ci_view, 3))
 ```
+
 Predictions Plot (Linear Model)
 
 ```{r, warning=FALSE, message=FALSE, error=FALSE}
