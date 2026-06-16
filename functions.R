@@ -6,6 +6,7 @@ library(posterior)
 library(ggplot2)
 library(loo)
 library(bridgesampling)
+library(patchwork)
 
 # DATA READING FUNCTION
 
@@ -496,7 +497,9 @@ constant_predictive_pdf <- function(chain, t_new) {
 
 # Pred PDF plot function
 
-plot_predictive_comparison <- function(draws_lin, draws_const, time_future, years_sd, years_mean, temp_range = c(5, 20)) {
+plot_predictive_comparison <- function(draws_lin, draws_const, time_future,
+                                       years_sd, years_mean,
+                                       temp_range = c(5, 20)) {
   
   layout_matrix <- matrix(c(
     1, 2,  3,  4,  5,  6,
@@ -506,23 +509,28 @@ plot_predictive_comparison <- function(draws_lin, draws_const, time_future, year
   layout(layout_matrix, widths = c(0.5, 1, 1, 1, 1, 1))
   
   par(mar = c(0, 0, 0, 0))
-  plot(0, 0, type = "n", bty = "n", xaxt = "n", yaxt = "n", xlab = "", ylab = "")
+  
+  plot(0, 0, type = "n", bty = "n",
+       xaxt = "n", yaxt = "n",
+       xlab = "", ylab = "")
   
   legend("center",
-         legend = c("Linear: Pred PDF", "Constant: Pred PDF"),
+         legend = c("Linear", "Constant"),
          col = c("darkblue", "red"),
          lwd = 2,
          lty = c(1, 2),
          bty = "n",
-         cex = 0.8)
+         cex = 1.3,        # ↑ legend text size
+         text.font = 2)
   
   temperature_grid <- seq(temp_range[1], temp_range[2], length.out = 300)
   years_future_real <- (time_future * years_sd) + years_mean
   
-  n_steps <- length(time_future) 
+  n_steps <- length(time_future)
   
   for (i in 1:n_steps) {
-    par(mar = c(4, 4, 3, 1))
+    
+    par(mar = c(4.5, 4.5, 3, 1))  # ↑ slightly larger margins for labels
     
     pdf_lin_fun <- linear_predictive_pdf(draws_lin, time_future[i])
     pdf_const_fun <- constant_predictive_pdf(draws_const, time_future[i])
@@ -532,16 +540,17 @@ plot_predictive_comparison <- function(draws_lin, draws_const, time_future, year
     
     y_max <- max(c(density_lin, density_const)) * 1.15
     
-    plot(temperature_grid, density_lin, 
-         type = "l", 
-         lwd = 2, 
+    plot(temperature_grid, density_lin,
+         type = "l",
+         lwd = 2,
          col = "darkblue",
-         xlab = "Temp (°C)", 
+         xlab = "Temp (°C)",
          ylab = "Density",
          main = paste0("Step ", i, "\n(", round(years_future_real[i]), ")"),
-         cex.main = 0.9,
-         cex.axis = 0.8,
-         ylim = c(0, y_max)) 
+         cex.main = 1.3,      # ↑ title
+         cex.axis = 1.2,      # ↑ tick labels
+         cex.lab = 1.3,       # ↑ axis labels
+         ylim = c(0, y_max))
     
     lines(temperature_grid, density_const, lwd = 2, col = "red", lty = 2)
     

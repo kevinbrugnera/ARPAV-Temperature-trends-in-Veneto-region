@@ -175,6 +175,15 @@ cor_plot_sigma_dot_ms$cor
 
 ```
 
+```{r, fig.width=16, fig.height=5}
+p1 <- cor_plot_ms$plot
+p2 <- cor_plot_sigma_0_ms$plot
+p3 <- cor_plot_sigma_dot_ms$plot
+
+(p1 | p2 | p3)
+```
+
+
 ### 4.4 Posterior Density and Observational Fitting
 
 ```{r}
@@ -186,7 +195,7 @@ plot_ms <- plot_posterior(draws_df_ms,
                           orig_mean = years_mean_ms, 
                           orig_sd = years_sd_ceiling_ms, 
                           my_step = step_ms)
-#print(plot_ms)
+print(plot_ms)
 ```
 
 ### 4.5 MCMC Diagnostic Plots
@@ -328,6 +337,12 @@ cat("LOO-CV MODEL COMPARISON (Montesummano)\n\n")
 cat("ELPD difference (M_Lin - M_Const):", round(elpd_diff_ms, 3), "\n")
 cat("Standard error:", round(se_diff_ms, 3), "\n")
 ```
+Unified fit plot below (for comparison).
+
+```{r, fig.width=12, fig.height=5, dpi=300}
+(plot_ms_c | plot_ms )
+```
+
 
 ## 7. 10-Year Posterior Predictions (Annual Mean T)
 
@@ -576,6 +591,13 @@ print(cor_plot_sigma_dot_od$plot)
 cor_plot_sigma_dot_od$cor
 
 ```
+```{r, fig.width=16, fig.height=5}
+p1 <- cor_plot_od$plot
+p2 <- cor_plot_sigma_0_od$plot
+p3 <- cor_plot_sigma_dot_od$plot
+
+(p1 | p2 | p3)
+```
 
 ### 4.4 Posterior Density and Observational Fitting
 
@@ -729,6 +751,11 @@ cat("LOO-CV MODEL COMPARISON (Oderzo)\n\n")
 cat("ELPD difference (M_Lin - M_Const):", round(elpd_diff_od, 3), "\n")
 cat("Standard error:", round(se_diff_od, 3), "\n")
 
+```
+Unified fit plot below (for comparison).
+
+```{r, fig.width=12, fig.height=5, dpi=300}
+(plot_od_c | plot_od )
 ```
 
 ## 7. 10-Year Posterior Predictions (Annual Mean T)
@@ -976,6 +1003,14 @@ print(cor_plot_sigma_dot_ci$plot)
 cor_plot_sigma_dot_ci$cor
 
 ```
+```{r, fig.width=16, fig.height=5}
+p1 <- cor_plot_ci$plot
+p2 <- cor_plot_sigma_0_ci$plot
+p3 <- cor_plot_sigma_dot_ci$plot
+
+(p1 | p2 | p3)
+```
+
 
 ### 4.4 Posterior Density and Observational Fitting
 
@@ -1132,6 +1167,11 @@ cat("ELPD difference (M_Lin - M_Const):", round(elpd_diff_ci, 3), "\n")
 cat("Standard error:", round(se_diff_ci, 3), "\n")
 ```
 
+Unified fit plot below (for comparison).
+
+```{r, fig.width=12, fig.height=5, dpi=300}
+(plot_ci_c | plot_ci )
+```
 
 ## 7. 10-Year Posterior Predictions (Annual Mean T)
 
