@@ -126,7 +126,7 @@ plot_hist <- function(temp_min, temp_mean, temp_max, month = "", city = "") {
          inset = c(-0.22, 0))
 }
 
-# SUBPLOT FIT FUNCTION
+# SUBPLOT PLOTTING
 
 plot_hist_all <- function(data, city = "") {
   
@@ -219,6 +219,22 @@ plot_hist_all <- function(data, city = "") {
         font = 2)
 }
 
+# STAN FIT FUNCTION
+
+build_fit_stan_model <- function(stan_file_path, my_data) {
+  my_mod <- cmdstan_model(stan_file_path)
+  cat("MODEL COMPILED SUCCESSFULLY\n")
+  my_fit <- my_mod$sample(
+    data = my_data,
+    chains = 4,
+    parallel_chains = 4,
+    iter_warmup = 1000,
+    iter_sampling = 2000,
+    seed = 222 
+  )
+  return(list(mod = my_mod, fit = my_fit))
+}
+
 # CORRELATIONS FUNCTION
 
 plot_2_correlations <- function(my_draws_df, params_list, axes_names = c(expression(T[0]), expression(dot(T)))) {
@@ -230,14 +246,14 @@ plot_2_correlations <- function(my_draws_df, params_list, axes_names = c(express
       x = axes_names[1],
       y = axes_names[2]
     ) +
-    theme_classic(base_size = 12, base_family = "serif") +
+    theme_classic(base_size = 14, base_family = "serif") +
     theme(
       panel.border = element_rect(fill = NA, color = "black", linewidth = 0.5),
       axis.line = element_blank(),
       axis.ticks = element_line(color = "black", linewidth = 0.5),
       axis.ticks.length = unit(0.15, "cm"),
-      axis.title = element_text(size = 12),
-      axis.text = element_text(size = 10, color = "black")
+      axis.title = element_text(size = 16),
+      axis.text = element_text(size = 13, color = "black")
     )
   return(list(cor = cm, plot = p))
 }
