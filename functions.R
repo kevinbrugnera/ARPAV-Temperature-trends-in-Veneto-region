@@ -67,11 +67,7 @@ find_data <- function(path){
 # DATA PLOTTING FUNCTION
 
 plot_hist <- function(temp_min, temp_mean, temp_max, month = "", city = "") {
-  if (city == "Oderzo") {
-    year <- 1994:2023
-  } else {
-    year <- 1994:2024
-  }
+  year <- if (city == "Oderzo") 1994:2023 else 1994:2024
   t_min <- min(c(temp_min, temp_mean, temp_max), na.rm = TRUE)
   t_max <- max(c(temp_min, temp_mean, temp_max), na.rm = TRUE)
   
@@ -130,20 +126,97 @@ plot_hist <- function(temp_min, temp_mean, temp_max, month = "", city = "") {
          inset = c(-0.22, 0))
 }
 
-# STAN FIT FUNCTION
+# SUBPLOT FIT FUNCTION
 
-build_fit_stan_model <- function(stan_file_path, my_data) {
-  my_mod <- cmdstan_model(stan_file_path)
-  cat("MODEL COMPILED SUCCESSFULLY\n")
-  my_fit <- my_mod$sample(
-    data = my_data,
-    chains = 4,
-    parallel_chains = 4,
-    iter_warmup = 1000,
-    iter_sampling = 2000,
-    seed = 222 
-  )
-  return(list(mod = my_mod, fit = my_fit))
+plot_hist_all <- function(data, city = "") {
+  
+  months <- c("GEN", "FEB", "MAR", "APR", "MAG", "GIU",
+              "LUG", "AGO", "SET", "OTT", "NOV", "DIC")
+  
+  month_name <- c("January", "February", "March", "April", "May", "June",
+                  "July", "August", "September", "October", "November", "December")
+  
+  x <- if (city == "Oderzo") 1994:2023 else 1994:2024
+  
+  all_min  <- unlist(lapply(data[[1]][months], identity))
+  all_mean <- unlist(lapply(data[[2]][months], identity))
+  all_max  <- unlist(lapply(data[[3]][months], identity))
+  
+  y_lim <- range(c(all_min, all_mean, all_max), na.rm = TRUE)
+  
+  old_par <- par(no.readonly = TRUE)
+  on.exit(par(old_par))
+  
+  par(mfrow = c(4, 3),
+      mar = c(4, 4, 3, 1),
+      oma = c(5, 5, 5, 1),
+      
+      cex.axis = 1.4,   
+      font.axis = 2,    
+      
+      cex.lab = 1.5,    
+      font.lab = 2,    
+      
+      mgp = c(3, 1.2, 0),
+      tck = 0.03)
+  
+  for (i in seq_along(months)) {
+    
+    m <- months[i]
+    
+    temp_min  <- data[[1]][[m]]
+    temp_mean <- data[[2]][[m]]
+    temp_max  <- data[[3]][[m]]
+    
+    plot(x, temp_max,
+         type = "n",
+         ylim = y_lim,
+         xlim = range(x),
+         main = month_name[i],
+         cex.main = 1.9,
+         font.main = 2,
+         xlab = "",
+         ylab = "")
+    
+    grid(col = "lightgray", lty = "dotted")
+    
+    lines(x, temp_max,  type = "h", lwd = 9, col = "red", lend = 1)
+    lines(x, temp_mean, type = "h", lwd = 9, col = "darkorange", lend = 1)
+    lines(x, temp_min,  type = "h", lwd = 9, col = "blue", lend = 1)
+    
+    abline(h = 0, col = "gray50", lty = 2)
+    
+    if (i == 1) {
+      legend("topright",
+             legend = c("Max", "Mean", "Min"),
+             fill = c("red", "darkorange", "blue"),
+             border = NA,
+             bty = "n",
+             cex = 1.5,
+             text.font = 2,
+             pt.cex = 2)
+    }
+  }
+  
+  mtext(paste("Min-Mean-Max Temperature -", city),
+        outer = TRUE,
+        line = 2,
+        cex = 1.8,
+        font = 2)
+  
+  mtext("Year",
+        side = 1,
+        outer = TRUE,
+        line = 2.5,
+        cex = 1.6,
+        font = 2)
+  
+  mtext("Temperature (°C)",
+        side = 2,
+        outer = TRUE,
+        line = 2.5,
+        cex = 1.6,
+        font = 2)
 }
 
 # CORRELATIONS FUNCTION

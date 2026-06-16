@@ -53,6 +53,10 @@ for (i in seq_along(month)) {
 }
 ```
 
+```{r, fig.width=14, fig.height=18, dpi=300}
+plot_hist_all(data_ms, city = "Monte Summano")
+```
+
 ## 3. Bayesian Model Preparation
 
 ### 3.1 Summaries and Extraction
@@ -157,15 +161,15 @@ cat("\n")
 ### 4.3 Parameter Dependencies (Correlation Analysis)
 
 ```{r}
-cor_plot_ms <- plot_2_correlations(draws_df_ms, stan_T_param_names)
+cor_plot_ms <- plot_2_correlations(draws_df_ms, stan_T_param_names, axes_names = c(expression(T[0]), expression(dot(T))))
 print(cor_plot_ms$plot)
 cor_plot_ms$cor 
 
-cor_plot_sigma_0_ms <- plot_2_correlations(draws_df_ms, c("T0", "sigma"))
+cor_plot_sigma_0_ms <- plot_2_correlations(draws_df_ms, c("T0", "sigma"), axes_names = c(expression(T[0]), expression(sigma)))
 print(cor_plot_sigma_0_ms$plot)
 cor_plot_sigma_0_ms$cor
 
-cor_plot_sigma_dot_ms <- plot_2_correlations(draws_df_ms, c("T_dot", "sigma"))
+cor_plot_sigma_dot_ms <- plot_2_correlations(draws_df_ms, c("T_dot", "sigma"), axes_names = c(expression(dot(T)), expression(sigma)))
 print(cor_plot_sigma_dot_ms$plot)
 cor_plot_sigma_dot_ms$cor
 
@@ -239,7 +243,7 @@ cat("\n")
 ### 5.3 Parameter Dependencies (Correlation Analysis)
 
 ```{r, warning=FALSE}
-cor_plot_c_ms <- plot_2_correlations(draws_df_c_ms, c("T0", "sigma"))
+cor_plot_c_ms <- plot_2_correlations(draws_df_c_ms, c("T0", "sigma"), axes_names = c(expression(T[0]), expression(sigma)))
 print(cor_plot_c_ms$plot)
 cor_plot_c_ms$cor 
 
@@ -452,6 +456,9 @@ for (i in seq_along(month)) {
 }
 
 ```
+```{r, fig.width=14, fig.height=18, dpi=300}
+plot_hist_all(data_od, city = "Oderzo")
+```
 
 ## 3. Bayesian Model Preparation
 
@@ -556,15 +563,15 @@ cat("\n")
 ### 4.3 Parameter Dependencies (Correlation Analysis)
 
 ```{r, warning=FALSE}
-cor_plot_od <- plot_2_correlations(draws_df_od, stan_T_param_names)
+cor_plot_od <- plot_2_correlations(draws_df_od, stan_T_param_names, axes_names = c(expression(T[0]), expression(dot(T))))
 print(cor_plot_od$plot)
 cor_plot_od$cor 
 
-cor_plot_sigma_0_od <- plot_2_correlations(draws_df_od, c("T0", "sigma"))
+cor_plot_sigma_0_od <- plot_2_correlations(draws_df_od, c("T0", "sigma"), axes_names = c(expression(T[0]), expression(sigma)))
 print(cor_plot_sigma_0_od$plot)
 cor_plot_sigma_0_od$cor
 
-cor_plot_sigma_dot_od <- plot_2_correlations(draws_df_od, c("T_dot", "sigma"))
+cor_plot_sigma_dot_od <- plot_2_correlations(draws_df_od, c("T_dot", "sigma"), axes_names = c(expression(dot(T)), expression(sigma)))
 print(cor_plot_sigma_dot_od$plot)
 cor_plot_sigma_dot_od$cor
 
@@ -638,7 +645,7 @@ cat("\n")
 ### 5.3 Parameter Dependencies (Correlation Analysis)
 
 ```{r, warning=FALSE}
-cor_plot_c_od <- plot_2_correlations(draws_df_c_od, c("T0", "sigma"))
+cor_plot_c_od <- plot_2_correlations(draws_df_c_od, c("T0", "sigma"), axes_names = c(expression(T[0]), expression(sigma)))
 print(cor_plot_c_od$plot)
 cor_plot_c_od$cor 
 
@@ -849,6 +856,10 @@ for (i in seq_along(month)) {
 }
 ```
 
+```{r, fig.width=14, fig.height=18, dpi=300}
+plot_hist_all(data_ci, city = "Cittadella")
+```
+
 ## 3. Bayesian Model Preparation
 
 ### 3.1 Summaries and Extraction
@@ -952,15 +963,15 @@ cat("\n")
 ### 4.3 Parameter Dependencies (Correlation Analysis)
 
 ```{r, warning=FALSE}
-cor_plot_ci <- plot_2_correlations(draws_df_ci, stan_T_param_names)
+cor_plot_ci <- plot_2_correlations(draws_df_ci, stan_T_param_names, axes_names = c(expression(T[0]), expression(dot(T))))
 print(cor_plot_ci$plot)
 cor_plot_ci$cor 
 
-cor_plot_sigma_0_ci <- plot_2_correlations(draws_df_ci, c("T0", "sigma"))
+cor_plot_sigma_0_ci <- plot_2_correlations(draws_df_ci, c("T0", "sigma"), axes_names = c(expression(T[0]), expression(sigma)))
 print(cor_plot_sigma_0_ci$plot)
 cor_plot_sigma_0_ci$cor
 
-cor_plot_sigma_dot_ci <- plot_2_correlations(draws_df_ci, c("T_dot", "sigma"))
+cor_plot_sigma_dot_ci <- plot_2_correlations(draws_df_ci, c("T_dot", "sigma"), axes_names = c(expression(dot(T)), expression(sigma)))
 print(cor_plot_sigma_dot_ci$plot)
 cor_plot_sigma_dot_ci$cor
 
@@ -1035,7 +1046,7 @@ cat("\n")
 ### 5.3 Parameter Dependencies (Correlation Analysis)
 
 ```{r, warning=FALSE}
-cor_plot_c_ci <- plot_2_correlations(draws_df_c_ci, c("T0", "sigma"))
+cor_plot_c_ci <- plot_2_correlations(draws_df_c_ci, c("T0", "sigma"), axes_names = c(expression(T[0]), expression(sigma)))
 print(cor_plot_c_ci$plot)
 cor_plot_c_ci$cor 
 
@@ -1206,3 +1217,19 @@ full_plot <- plot_ci_c +
 
 print(full_plot)
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
