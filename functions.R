@@ -67,13 +67,11 @@ find_data <- function(path){
 # DATA PLOTTING FUNCTION
 
 plot_hist <- function(temp_min, temp_mean, temp_max, month = "", city = "") {
-  
   if (city == "Oderzo") {
     year <- 1994:2023
   } else {
     year <- 1994:2024
   }
-    
   t_min <- min(c(temp_min, temp_mean, temp_max), na.rm = TRUE)
   t_max <- max(c(temp_min, temp_mean, temp_max), na.rm = TRUE)
   
@@ -81,10 +79,16 @@ plot_hist <- function(temp_min, temp_mean, temp_max, month = "", city = "") {
   on.exit(par(old_par)) 
   par(mar = c(5, 4, 4, 7) + 0.1)
   
+  if (month == "Mean") {
+    title <- paste("Average Temperature -", city) 
+  } else {
+    title <- paste("Temperature in", month, "-", city)
+  }
+  
   plot(year, temp_max,
        type = "n",
        ylim = c(-5, 35),
-       main = paste("Temperature in", month, "-", city),
+       main = title,
        xlab = "Year",
        ylab = "Temperature (°C)")
   
@@ -118,12 +122,12 @@ plot_hist <- function(temp_min, temp_mean, temp_max, month = "", city = "") {
   abline(h = 0, col = "gray50", lwd = 1, lty = 2)
   
   legend("topright", 
-        legend = c("Max", "Mean", "Min"),
-        fill = c("red", "darkorange", "blue"),
-        border = NA,
-        bty = "n",
-        xpd = TRUE,
-        inset = c(-0.22, 0))
+         legend = c("Max", "Mean", "Min"),
+         fill = c("red", "darkorange", "blue"),
+         border = NA,
+         bty = "n",
+         xpd = TRUE,
+         inset = c(-0.22, 0))
 }
 
 # STAN FIT FUNCTION
@@ -369,7 +373,7 @@ log_posterior_constant <- function(samples.row, data) {
 # Predictive pdf functions
 
 linear_predictive_pdf <- function(chain, t_new) {
-
+  
   t0_samples    <- chain$T0
   t_dot_samples <- chain$T_dot
   sigma_samples <- chain$sigma
@@ -438,7 +442,7 @@ plot_predictive_comparison <- function(draws_lin, draws_const, time_future, year
     density_const <- pdf_const_fun(temperature_grid)
     
     y_max <- max(c(density_lin, density_const)) * 1.15
-
+    
     plot(temperature_grid, density_lin, 
          type = "l", 
          lwd = 2, 
@@ -471,7 +475,7 @@ predictive_summaries <- function(chain, time_vector, model_type = "linear") {
       pdf_fun <- constant_predictive_pdf(chain, t_val)
       mu_chain <- chain$T0
     }
-
+    
     exact_mean <- mean(mu_chain)
     exact_sd <- sqrt(mean(chain$sigma^2) + mean((mu_chain - exact_mean)^2)) # variance decomposition for gaussian mixture
     

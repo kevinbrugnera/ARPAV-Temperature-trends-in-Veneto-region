@@ -49,7 +49,7 @@ for (i in seq_along(month)) {
   
   plot_hist(temp_min_ms, temp_mean_ms, temp_max_ms, 
             month = m_name, 
-            city = "Montesummano")
+            city = "Monte Summano")
 }
 ```
 
@@ -113,7 +113,7 @@ stan_data_ms <- list(
 
 ### 4.1 MCMC Sampling and Convergence Diagnostics
 
-```{r, warning=FALSE, message=FALSE}
+```{r, warning=TRUE, message=TRUE}
 res_ms <- build_fit_stan_model("./Stan/linear_model.stan", stan_data_ms)
 
 mod_ms <- res_ms$mod
@@ -514,7 +514,7 @@ stan_data_od <- list(
 
 ### 4.1 MCMC Sampling and Convergence Diagnostics
 
-```{r, warning=FALSE, message=FALSE}
+```{r, warning=TRUE, message=TRUE}
 res_od <- build_fit_stan_model("./Stan/linear_model.stan", stan_data_od)
 
 mod_od <- res_od$mod
@@ -910,7 +910,7 @@ stan_data_ci <- list(
 
 ### 4.1 MCMC Sampling and Convergence Diagnostics
 
-```{r, warning=FALSE, message=FALSE}
+```{r, warning=TRUE, message=TRUE}
 res_ci <- build_fit_stan_model("./Stan/linear_model.stan", stan_data_ci)
 
 mod_ci <- res_ci$mod
@@ -1119,10 +1119,6 @@ se_diff_ci     <- sqrt(length(elpd_diff_i_ci) * var(elpd_diff_i_ci))
 cat("LOO-CV MODEL COMPARISON\n\n")
 cat("ELPD difference (M_Lin - M_Const):", round(elpd_diff_ci, 3), "\n")
 cat("Standard error:", round(se_diff_ci, 3), "\n")
-```
-
-```{r}
-loo_compare(loo_res_ci, c_loo_res_ci)
 ```
 
 
