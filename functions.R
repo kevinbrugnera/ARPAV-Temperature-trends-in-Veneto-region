@@ -67,7 +67,13 @@ find_data <- function(path){
 # DATA PLOTTING FUNCTION
 
 plot_hist <- function(temp_min, temp_mean, temp_max, month = "", city = "") {
-  year <- 1994:2024
+  
+  if (city == "Oderzo") {
+    year <- 1994:2023
+  } else {
+    year <- 1994:2024
+  }
+    
   t_min <- min(c(temp_min, temp_mean, temp_max), na.rm = TRUE)
   t_max <- max(c(temp_min, temp_mean, temp_max), na.rm = TRUE)
   

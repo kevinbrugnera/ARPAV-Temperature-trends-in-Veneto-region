@@ -13,6 +13,7 @@ output:
 First, we import the functions.R files, with all dependencies and used function.
 
 ```{r setup, message=FALSE, warning=FALSE}
+set.seed(123)
 source("functions.R")
 ```
 
@@ -181,7 +182,7 @@ plot_ms <- plot_posterior(draws_df_ms,
                           orig_mean = years_mean_ms, 
                           orig_sd = years_sd_ceiling_ms, 
                           my_step = step_ms)
-print(plot_ms)
+#print(plot_ms)
 ```
 
 ### 4.5 MCMC Diagnostic Plots
@@ -274,6 +275,7 @@ print(c_graphs_ms$acf)
 ### 6.1 Bayes-Factor Evaluation
 
 ```{r}
+set.seed(123)
 data_list_ms <- list(T_obs = stan_data_ms$T, time_vec = stan_data_ms$time)
 
 log_marg_lik_linear_ms <- bridge_sampler(
@@ -310,14 +312,17 @@ loo_res_ms <- loo(log_lik_ms)
 c_log_lik_ms <- fit_c_ms$draws("log_lik", format = "matrix")
 c_loo_res_ms <- loo(c_log_lik_ms)
 
-loo_comp_ms <- compare(loo_res_ms, c_loo_res_ms)
-elpd_diff_ms <- loo_comp_ms["elpd_diff"]
-se_diff_ms   <- loo_comp_ms["se"]
+elpd_lin_i_ms <- loo_res_ms$pointwise[, "elpd_loo"]
+elpd_c_i_ms   <- c_loo_res_ms$pointwise[, "elpd_loo"]
 
-cat("LOO-CV MODEL COMPARISON\n\n")
+elpd_diff_i_ms <- elpd_lin_i_ms - elpd_c_i_ms
+
+elpd_diff_ms <- sum(elpd_diff_i_ms)
+se_diff_ms   <- sqrt(length(elpd_diff_i_ms) * var(elpd_diff_i_ms))
+
+cat("LOO-CV MODEL COMPARISON (Montesummano)\n\n")
 cat("ELPD difference (M_Lin - M_Const):", round(elpd_diff_ms, 3), "\n")
 cat("Standard error:", round(se_diff_ms, 3), "\n")
-
 ```
 
 ## 7. 10-Year Posterior Predictions (Annual Mean T)
@@ -417,9 +422,11 @@ In this section follows the forecast analysis for Oderzo station measurements.
 
 ```{r}
 data_od <- find_data("data/Oderzo.csv")
+data_od <- lapply(data_od, function(df) df[-nrow(df), ]) # removed 2024 (only Jan meas)
 data_od
 
 ```
+
 
 ## 2. Exploratory Visualization
 
@@ -435,11 +442,11 @@ for (i in seq_along(month)) {
   m <- month[i]
   m_name <- month_name[i]
   
-  temp_min_ms  <- data_od[[1]][[m]]
-  temp_mean_ms <- data_od[[2]][[m]]
-  temp_max_ms  <- data_od[[3]][[m]]
+  temp_min_od  <- data_od[[1]][[m]]
+  temp_mean_od <- data_od[[2]][[m]]
+  temp_max_od  <- data_od[[3]][[m]]
   
-  plot_hist(temp_min_ms, temp_mean_ms, temp_max_ms, 
+  plot_hist(temp_min_od, temp_mean_od, temp_max_od, 
             month = m_name, 
             city = "Oderzo")
 }
@@ -666,6 +673,7 @@ print(c_graphs_od$acf)
 ### 6.1 Bayes-Factor Evaluation
 
 ```{r}
+set.seed(123)
 data_list_od <- list(T_obs = stan_data_od$T, time_vec = stan_data_od$time)
 
 log_marg_lik_linear_od <- bridge_sampler(
@@ -702,11 +710,15 @@ loo_res_od <- loo(log_lik_od)
 c_log_lik_od <- fit_c_od$draws("log_lik", format = "matrix")
 c_loo_res_od <- loo(c_log_lik_od)
 
-loo_comp_od <- compare(loo_res_od, c_loo_res_od)
-elpd_diff_od <- loo_comp_od["elpd_diff"]
-se_diff_od   <- loo_comp_od["se"]
+elpd_lin_i_od <- loo_res_od$pointwise[, "elpd_loo"]
+elpd_c_i_od   <- c_loo_res_od$pointwise[, "elpd_loo"]
 
-cat("LOO-CV MODEL COMPARISON\n\n")
+elpd_diff_i_od <- elpd_lin_i_od - elpd_c_i_od
+
+elpd_diff_od <- sum(elpd_diff_i_od)
+se_diff_od   <- sqrt(length(elpd_diff_i_od) * var(elpd_diff_i_od))
+
+cat("LOO-CV MODEL COMPARISON (Oderzo)\n\n")
 cat("ELPD difference (M_Lin - M_Const):", round(elpd_diff_od, 3), "\n")
 cat("Standard error:", round(se_diff_od, 3), "\n")
 
@@ -827,11 +839,11 @@ for (i in seq_along(month)) {
   m <- month[i]
   m_name <- month_name[i]
   
-  temp_min_ms  <- data_ci[[1]][[m]]
-  temp_mean_ms <- data_ci[[2]][[m]]
-  temp_max_ms  <- data_ci[[3]][[m]]
+  temp_min_ci  <- data_ci[[1]][[m]]
+  temp_mean_ci <- data_ci[[2]][[m]]
+  temp_max_ci  <- data_ci[[3]][[m]]
   
-  plot_hist(temp_min_ms, temp_mean_ms, temp_max_ms, 
+  plot_hist(temp_min_ci, temp_mean_ci, temp_max_ci, 
             month = m_name, 
             city = "Cittadella")
 }
@@ -1059,6 +1071,7 @@ print(c_graphs_ci$acf)
 ### 6.1 Bayes-Factor Evaluation
 
 ```{r}
+set.seed(123)
 data_list_ci <- list(T_obs = stan_data_ci$T, time_vec = stan_data_ci$time)
 
 log_marg_lik_linear_ci <- bridge_sampler(
@@ -1095,15 +1108,23 @@ loo_res_ci <- loo(log_lik_ci)
 c_log_lik_ci <- fit_c_ci$draws("log_lik", format = "matrix")
 c_loo_res_ci <- loo(c_log_lik_ci)
 
-loo_comp_ci <- compare(loo_res_ci, c_loo_res_ci)
-elpd_diff_ci <- loo_comp_ci["elpd_diff"]
-se_diff_ci   <- loo_comp_ci["se"]
+elpd_lin_i_ci <- loo_res_ci$pointwise[, "elpd_loo"]
+elpd_c_i_ci   <- c_loo_res_ci$pointwise[, "elpd_loo"]
+
+elpd_diff_i_ci <- elpd_lin_i_ci - elpd_c_i_ci
+
+elpd_diff_ci   <- sum(elpd_diff_i_ci)
+se_diff_ci     <- sqrt(length(elpd_diff_i_ci) * var(elpd_diff_i_ci))
 
 cat("LOO-CV MODEL COMPARISON\n\n")
 cat("ELPD difference (M_Lin - M_Const):", round(elpd_diff_ci, 3), "\n")
 cat("Standard error:", round(se_diff_ci, 3), "\n")
-
 ```
+
+```{r}
+loo_compare(loo_res_ci, c_loo_res_ci)
+```
+
 
 ## 7. 10-Year Posterior Predictions (Annual Mean T)
 
